@@ -3,7 +3,7 @@ Rogue-based imperative build-your-own build system
 
 About     | Current Release
 ----------|-----------------------
-Version   | 1.0
+Version   | 1.0.1
 Date      | 2021.08.10
 Platforms | macOS, Linux (Ubuntu+), Windows, Cygwin
 
