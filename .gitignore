@@ -1,0 +1,7 @@
+/bin
+BuildLocal.rogue
+/Build
+*.swo
+*.swp
+*.o
+.DS_Store
