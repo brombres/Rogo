@@ -1,16 +1,14 @@
-INSTALL_FOLDER=.
+INSTALL_FOLDER=/usr/local
 
-all: homebrew
+all: $(INSTALL_FOLDER)/bin/rogo
 
-homebrew: $(INSTALL_FOLDER)/bin/rogo
+homebrew: all
 
 $(INSTALL_FOLDER)/bin/rogo: Source/Rogo.rogue
 	mkdir -p Build
 	roguec Source/Rogo.rogue --compile --compile-arg="-O3" --output=Build
-	mkdir -p $(INSTALL_FOLDER)/bin
-	cp Build/Rogo $(INSTALL_FOLDER)/bin/rogo
+	cp Build/Rogo $(INSTALL_FOLDER)/bin/rogo || sudo cp Build/Rogo $(INSTALL_FOLDER)/bin/rogo
 
 clean:
 	rm -rf Build
-	rm -rf $(INSTALL_FOLDER)/bin
 
