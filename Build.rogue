@@ -14,11 +14,9 @@ augment Build
     PROJECT           = "Rogo"
     LAUNCHER_NAME     = "rogo"
     LAUNCHER_FOLDER   = "/usr/local/bin"
-    ROGUEC_FLAGS      = "--debug"
-    CPP_FLAGS_UNIX    = "-O0"
-                        # -O3 to optimize
-    CPP_FLAGS_WINDOWS = "/Od"
-                        # /Ob2ity /GF /Gy to optimize
+    ROGUEC_FLAGS      = ""
+    CPP_FLAGS_UNIX    = "-O3"
+    CPP_FLAGS_WINDOWS = "/Ob2ity /GF /Gy"
 endAugment
 
 routine exe_filepath->String
