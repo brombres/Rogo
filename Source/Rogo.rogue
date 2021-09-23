@@ -185,34 +185,47 @@ if (not buildfiles.count)
          |endRoutine
          |
          |routine rogo_build
-         |  block exe_filepath
-         |    local source_files = Files( "Source", "**/*.rogue" )
-         |    local src_filepath = "Source/$.rogue" (Build.PROJECT)
-         |    if (source_files.any_newer_than(exe_filepath))
-         |      local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
-         |      if (source_files.any_newer_than(cpp_filepath))
-         |        execute "roguec $ $ --main --output=$ --target=Console,C++,$"...
-         |                (File.esc(src_filepath),Build.ROGUEC_FLAGS,File.esc(cpp_filepath),System.os)
-         |      endIf
-         |      if (System.is_windows)
-         |        local libs = ""
-         |        local cc = "cl $ /EHsc /nologo $ /Fe$ $" (Build.CPP_FLAGS_WINDOWS,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
-         |        #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
-         |        execute cc
-         |      else
+         |  local source_files = Files( "Source", "**/*.rogue" )
+         |  if (source_files.any_newer_than(exe_filepath))
+         |    local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
+         |    if (source_files.any_newer_than(cpp_filepath))
+         |      compile_rogue
+         |    endIf
+         |    compile_cpp
+         |  endIf
+         |endRoutine
+         |
+         |routine rogo_rebuild
+         |  compile_rogue
+         |  compile_cpp
+         |endRoutine
+         |
+         |routine compile_rogue
+         |  local src_filepath = "Source/$.rogue" (Build.PROJECT)
+         |  local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
+         |  execute "roguec $ $ --main --output=$ --target=Console,C++,$"...
+         |          (File.esc(src_filepath),Build.ROGUEC_FLAGS,File.esc(cpp_filepath),System.os)
+         |endRoutine
+         |
+         |routine compile_cpp
+         |  local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
+         |  if (System.is_windows)
+         |    local libs = ""
+         |    local cc = "cl $ /EHsc /nologo $ /Fe$ $" (Build.CPP_FLAGS_WINDOWS,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+         |    #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
+         |    execute cc
+         |  else
 
     if (bitmap_option)
-      builder.println @|        local libs = which{ System.is_linux:" $LIBRARY_FLAGS(libpng-dev,libjpeg-dev)" || " $LIBRARY_FLAGS(libpng,libjpeg,zlib)" }
+      builder.println @|    local libs = which{ System.is_linux:" $LIBRARY_FLAGS(libpng-dev,libjpeg-dev)" || " $LIBRARY_FLAGS(libpng,libjpeg,zlib)" }
     else
-      builder.println @|        local libs = ""
+      builder.println @|    local libs = ""
     endIf
     builder.println ...
-        @|        local cc = "c++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ $ -o $$"...
-         |          (Build.CPP_FLAGS_UNIX,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
-         |        execute cc
-         |      endIf
-         |    endIf
-         |  endBlock
+        @|    local cc = "c++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ $ -o $$"...
+         |      (Build.CPP_FLAGS_UNIX,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+         |    execute cc
+         |  endIf
          |endRoutine
          |
          |routine rogo_run
@@ -260,7 +273,7 @@ if (not buildfiles.count)
          |  endIf
          |endRoutine
          |
-         |routine rogo_clean
+         |routine rogo_uninstall
          |  verbose_delete( "Build" )
          |  if (not System.is_windows) verbose_delete( "$/$"(launcher_folder,Build.LAUNCHER_NAME) )
          |endRoutine
