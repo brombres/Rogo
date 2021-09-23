@@ -5,3 +5,4 @@ BuildLocal.rogue
 *.swp
 *.o
 .DS_Store
+.rogo
