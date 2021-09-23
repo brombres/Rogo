@@ -164,7 +164,7 @@ if (not buildfiles.count)
          |
          |routine rogo_default
          |  rogo_build
-     builder.println "  #rogo_install_launcher  # Uncomment to automatically install a /usr/local/bin/$ launcher" (project_name.to_lowercase)
+     builder.println "  #rogo_install  # Uncomment to automatically install a /usr/local/bin/$ launcher" (project_name.to_lowercase)
      builder.println ...
         @|  rogo_run
          |endRoutine
@@ -204,8 +204,8 @@ if (not buildfiles.count)
          |  execute File.esc( exe_filepath )
          |endRoutine
          |
-         |routine rogo_install_launcher
-         |  local exe_filepath = File.absolute_filepath( exe_filepath )
+         |routine rogo_install
+         |  local exe_filepath = File.abs( exe_filepath )
          |  if (System.is_windows)
          |    local exe_folder = File.conventional_filepath( File.folder(exe_filepath) )
          |    local path = System.environment//PATH
