@@ -307,12 +307,16 @@ if (not buildfiles.count)
 
     builder.println ...
       @|
-       |routine execute( commands:String, &suppress_error )->Logical
+       |routine execute( commands:String, error_message=null:String, &suppress_error )->Logical
        |  forEach (cmd in LineReader(commands))
        |    print( "> " ).println( cmd )
-       |    if (System.run(cmd) != 0)
-       |      if (suppress_error) return false
-       |      else                throw Error( "Build failed." )
+       |    if (0 != System.run(cmd))
+       |      if (suppress_error)
+       |        return false
+       |      else
+       |        if (not error_message) error_message = "Build failed."
+       |        throw Error( error_message )
+       |      endIf
        |    endIf
        |  endForEach
        |  return true
