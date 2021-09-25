@@ -154,14 +154,13 @@ if (not buildfiles.count)
                        |  # You can create a Local.settings file with overrides for these values, e.g.:
                        |  # LAUNCHER_FOLDER = "~/bin"
                        |  PROPERTIES
+      builder.println ''    RELEASE_MODE      = false''
       builder.println ''    PROJECT           = "$"'' (project_name)
       builder.println ''    LAUNCHER_NAME     = "$"'' (project_name.to_lowercase)
       builder.println ''    LAUNCHER_FOLDER   = "/usr/local/bin"''
-      builder.println ''    ROGUEC_FLAGS      = "--debug"''
-      builder.println ''    CPP_FLAGS_UNIX    = "-O0"''
-      builder.println ''                        # -O3 to optimize''
-      builder.println ''    CPP_FLAGS_WINDOWS = "/Od"''
-      builder.println ''                        # /Ob2ity /GF /Gy to optimize''
+      builder.println ''    ROGUEC_FLAGS      = ""''
+      builder.println ''    CPP_FLAGS_UNIX    = ""''
+      builder.println ''    CPP_FLAGS_WINDOWS = ""''
 
       builder.println ...
         @|endAugment
@@ -203,15 +202,21 @@ if (not buildfiles.count)
          |routine compile_rogue
          |  local src_filepath = "Source/$.rogue" (Build.PROJECT)
          |  local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
+         |  local flags = Build.ROGUEC_FLAGS
+         |  if (flags != "") flags += " "
+         |  flags += which{ Build.RELEASE_MODE:"--release" || "--debug" }
          |  execute "roguec $ $ --main --output=$ --target=Console,C++,$"...
-         |          (File.esc(src_filepath),Build.ROGUEC_FLAGS,File.esc(cpp_filepath),System.os)
+         |          (File.esc(src_filepath),flags,File.esc(cpp_filepath),System.os)
          |endRoutine
          |
          |routine compile_cpp
          |  local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
          |  if (System.is_windows)
          |    local libs = ""
-         |    local cc = "cl $ /EHsc /nologo $ /Fe$ $" (Build.CPP_FLAGS_WINDOWS,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+         |    local flags = Build.CPP_FLAGS_WINDOWS
+         |    if (flags != "") flags += " "
+         |    flags += which{ Build.RELEASE_MODE:"/Ob2ity /GF /Gy" || "/Od" }
+         |    local cc = "cl $ /EHsc /nologo $ /Fe$ $" (flags,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
          |    #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
          |    execute cc
          |  else
@@ -222,8 +227,11 @@ if (not buildfiles.count)
       builder.println @|    local libs = ""
     endIf
     builder.println ...
-        @|    local cc = "c++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ $ -o $$"...
-         |      (Build.CPP_FLAGS_UNIX,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+        @|    local flags = Build.CPP_FLAGS_UNIX
+         |    if (flags != "") flags += " "
+         |    flags += which{ Build.RELEASE_MODE:"-O3" || "-O0" }
+         |    local cc = "c++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ $ -o $$"...
+         |      (flags,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
          |    execute cc
          |  endIf
          |endRoutine
