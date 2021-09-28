@@ -4,7 +4,7 @@ roguec Source/Rogo.rogue --compile --compile-arg="/Ob2ity /GF /Gy" --output=Buil
 
 @if "%~1" == "build" goto DONE
 @echo Add the following to Environment Variables ^> User variables ^> Path:
-@echo %CD%\Build
+@echo   %CD%\Build
 
 :DONE
 
