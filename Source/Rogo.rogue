@@ -210,13 +210,15 @@ if (not buildfiles.count)
          |endRoutine
          |
          |routine compile_cpp
-         |  local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
+         |  local cpp_filepath = File.esc( "Build/$-$.cpp" (Build.PROJECT,System.os) )
+         |  local exe_filepath = File.esc( exe_filepath )
          |  if (System.is_windows)
          |    local libs = ""
          |    local flags = Build.CPP_FLAGS_WINDOWS
          |    if (flags != "") flags += " "
          |    flags += which{ Build.RELEASE_MODE:"/Ob2ity /GF /Gy" || "/Od" }
-         |    local cc = "cl $ /EHsc /nologo $ /Fe$ $" (flags,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+         |    local obj_filepath = File.esc( "Build/$-Windows.obj"(Build.PROJECT) )
+         |    local cc = "cl $ /EHsc /nologo $ /Fo$ /Fe$ $" (flags,cpp_filepath,obj_filepath,exe_filepath,libs)
          |    #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
          |    execute cc
          |  else
