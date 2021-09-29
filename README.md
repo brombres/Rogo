@@ -5,7 +5,7 @@ About     | Current Release
 ----------|-----------------------
 Version   | 1.1
 Date      | 2021.09.28
-Platforms | macOS, Linux (Ubuntu+), Windows, Cygwin
+Platforms | Windows, macOS, Linux (Ubuntu+), Cygwin
 
 
 # Installing
