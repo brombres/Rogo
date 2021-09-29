@@ -37,7 +37,8 @@ endRoutine
 
 routine rogo_build
   block exe_filepath
-    local source_files = Files( "Source", "**/*.rogue" )
+    local source_files = Files( ".", "Source/**/*.rogue" )
+    source_files.add( "Build.rogue" )
     local src_filepath = "Source/$.rogue" (Build.PROJECT)
     if (source_files.any_newer_than(exe_filepath))
       local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
@@ -47,7 +48,7 @@ routine rogo_build
       endIf
       if (System.is_windows)
         local libs = ""
-        local cc = "cl $ /EHsc /nologo $ /Fe$ $" (Build.CPP_FLAGS_WINDOWS,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+        local cc = "cl $ /EHsc /nologo $ /FoBuild\\Rogo.obj /Fe$ $" (Build.CPP_FLAGS_WINDOWS,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
         #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
         execute cc
       else
