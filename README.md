@@ -3,21 +3,19 @@ Rogue-based imperative build-your-own build system
 
 About     | Current Release
 ----------|-----------------------
-Version   | 1.0.1
-Date      | 2021.08.10
-Platforms | macOS, Linux (Ubuntu+), Windows, Cygwin
+Version   | 1.1
+Date      | 2021.09.28
+Platforms | Windows, macOS, Linux (Ubuntu+), Cygwin
 
 
 # Installing
 
-## macOS and Linux
+## macOS, Linux, Windows
 
-1. Install [homebrew](https://brew.sh).
-2. `brew install abepralle/tools/rogo`
+1. Install [rogue](https://github.com/AbePralle/Rogue).
+2. `make install`
 
-## Windows
-
-Installing [RogueC](https://github.com/AbePralle/Rogue) on Windows also installs Rogo.
+Windows: note that 'make' is this project's make.bat script.
 
 # Adding Rogo to a Project
 
