@@ -1,0 +1,4 @@
+class RogoPackage : Package
+  PROPERTIES
+    name = "abepralle/rogo"
+endClass
