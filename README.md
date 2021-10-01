@@ -3,14 +3,20 @@ Rogue-based imperative build-your-own build system
 
 About     | Current Release
 ----------|-----------------------
-Version   | 1.1
-Date      | 2021.09.28
+Version   | 1.1.1
+Date      | 2021.09.30
 Platforms | Windows, macOS, Linux (Ubuntu+), Cygwin
 
 
 # Installing
 
 ## macOS, Linux, Windows
+
+*Either:*
+
+1. Install [morlock](https://morlock.sh), which also installs Rogo. (recommended)
+
+*Or:*
 
 1. Install [rogue](https://github.com/AbePralle/Rogue).
 2. `make install`
