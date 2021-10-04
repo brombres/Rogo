@@ -116,6 +116,10 @@ routine rogo_release( version:String )
     endIf
   endForEach
 
+  execute "git push"
+  local cmd = ''gh release create v$ --title "Rogo v$"''(version,version)
+  execute cmd
+
 endRoutine
 
 routine rogo_clean
