@@ -116,6 +116,7 @@ routine rogo_release( version:String )
     endIf
   endForEach
 
+  execute( ''git commit -am "[README] Updated for v$"''(version), &ignore_error )
   execute "git push"
   local cmd = ''gh release create v$ --title "Rogo v$"''(version,version)
   execute cmd
@@ -138,11 +139,11 @@ routine verbose_delete( filepath:String )
   endIf
 endRoutine
 
-routine execute( commands:String, &suppress_error )->Logical
+routine execute( commands:String, &ignore_error )->Logical
   forEach (cmd in LineReader(commands))
     print( "> " ).println( cmd )
     if (System.run(cmd) != 0)
-      if (suppress_error) return false
+      if (ignore_error) return false
       else                throw Error( "Build failed." )
     endIf
   endForEach
