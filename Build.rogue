@@ -103,7 +103,7 @@ routine rogo_install
   endIf
 endRoutine
 
-routine rogo_release( version:String )
+routine rogo_publish( version:String )
   # For repo owner's use
   forEach (line in rebuilder=File.rebuilder("README.md"))
     if (line.contains_pattern("Version|$(I)"))
