@@ -154,13 +154,13 @@ if (not buildfiles.count)
                        |  # You can create a Local.settings file with overrides for these values, e.g.:
                        |  # LAUNCHER_FOLDER = "~/bin"
                        |  PROPERTIES
-      builder.println ''    RELEASE_MODE      = false''
       builder.println ''    PROJECT           = "$"'' (project_name)
       builder.println ''    LAUNCHER_NAME     = "$"'' (project_name.to_lowercase)
       builder.println ''    LAUNCHER_FOLDER   = "/usr/local/bin"''
       builder.println ''    ROGUEC_FLAGS      = ""''
       builder.println ''    CPP_FLAGS_UNIX    = ""''
       builder.println ''    CPP_FLAGS_WINDOWS = ""''
+      builder.println ''    RELEASE_MODE      = true  # default; 'rogo debug' temporarily sets to false and rebuilds''
 
       builder.println ...
         @|endAugment
@@ -192,6 +192,11 @@ if (not buildfiles.count)
          |    endIf
          |    compile_cpp
          |  endIf
+         |endRoutine
+         |
+         |routine rogo_debug
+         |  Build.RELEASE_MODE = false
+         |  rogo_rebuild
          |endRoutine
          |
          |routine rogo_rebuild
@@ -232,7 +237,7 @@ if (not buildfiles.count)
         @|    local flags = Build.CPP_FLAGS_UNIX
          |    if (flags != "") flags += " "
          |    flags += which{ Build.RELEASE_MODE:"-O3" || "-O0" }
-         |    local cc = "c++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ $ -o $$"...
+         |    local cc = "c++ $ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ -o $$"...
          |      (flags,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
          |    execute cc
          |  endIf
