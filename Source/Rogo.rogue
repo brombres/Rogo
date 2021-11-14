@@ -155,15 +155,27 @@ if (not buildfiles.count)
                        |  # LAUNCHER_FOLDER = "~/bin"
                        |  PROPERTIES
       builder.println ''    PROJECT           = "$"'' (project_name)
-      builder.println ''    LAUNCHER_NAME     = "$"'' (project_name.to_lowercase)
+      builder.println ''    LAUNCHER_NAME     = PROJECT.to_lowercase : String''
+      builder.println
+      builder.println ''    RELEASE_MODE      = true  # default; 'rogo debug' temporarily sets to false and rebuilds''
       builder.println ''    LAUNCHER_FOLDER   = "/usr/local/bin"''
       builder.println ''    ROGUEC_FLAGS      = ""''
       builder.println ''    CPP_FLAGS_UNIX    = ""''
       builder.println ''    CPP_FLAGS_WINDOWS = ""''
-      builder.println ''    RELEASE_MODE      = true  # default; 'rogo debug' temporarily sets to false and rebuilds''
 
       builder.println ...
         @|endAugment
+         |
+         |routine rogo_default
+         |  rogo_build
+     builder.println "  #rogo_install  # Uncomment to automatically install a /usr/local/bin/$ launcher" (project_name.to_lowercase)
+     builder.println ...
+        @|  rogo_run
+         |endRoutine
+         |
+         |routine rogo_clean
+         |  File.delete( "Build" )
+         |endRoutine
          |
          |routine exe_filepath->String
          |  if (System.is_windows) return "Build/$.exe" (Build.LAUNCHER_NAME)
@@ -174,13 +186,6 @@ if (not buildfiles.count)
          |  local result = Build.LAUNCHER_FOLDER
          |  result = File.expand_path( result )
          |  return File.without_trailing_separator( result )
-         |endRoutine
-         |
-         |routine rogo_default
-         |  rogo_build
-     builder.println "  #rogo_install  # Uncomment to automatically install a /usr/local/bin/$ launcher" (project_name.to_lowercase)
-     builder.println ...
-        @|  rogo_run
          |endRoutine
          |
          |routine rogo_build
@@ -609,7 +614,7 @@ if (not buildfiles.count)
       builder.println @|try
       builder.println "  $( System.command_line_arguments )" (project_name)
       builder.println @|catch (error:Error)
-                       |  Console.error.println error.description
+                       |  Console.error.println error
                        |  System.exit 1
                        |endTry
       builder.println
