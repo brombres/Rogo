@@ -103,6 +103,7 @@ if (not buildfiles.count)
       File.save(
         ".gitignore",
         @|.rogo
+         |Local.settings
          |/Build
          |.*.swo
          |.*.swp
