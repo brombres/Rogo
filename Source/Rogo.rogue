@@ -104,6 +104,7 @@ if (not buildfiles.count)
         ".gitignore",
         @|.rogo
          |Local.settings
+         |BuildLocal.rogue
          |/Build
          |.*.swo
          |.*.swp
