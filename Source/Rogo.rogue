@@ -41,6 +41,10 @@ global package_manager = "apt"
 global package_manager_install = "sudo apt-get install"
 global package_manager_list    : String
 
+global syntax_info      = StringTable<<String>>() : StringTable<<String>>
+global description_info = StringTable<<String>>() : StringTable<<String>>
+global found_description_routine : Logical
+
 local buildfiles = Buildfiles()
 
 local should_create = false
@@ -146,12 +150,6 @@ if (not buildfiles.count)
       @|# To run this build file, install Rogue from github.com/AbePralle/Rogue then cd
        |# to this folder and type "rogo" at the command line.
        |
-       |# description()s are optional - Rogo uses introspection to determine which
-       |# commands are available. 'rogo help default' displays the description for
-       |# "default", etc.
-       |description( "default", "The default action is performed when no other actions are specified. Use 'rogo default' to explicitly perform the default option." )
-       |description( "help",    "Displays a list of all actions that can be performed by Rogo." )
-       |
 
     if (bitmap_option)
       builder.println ...
@@ -183,6 +181,7 @@ if (not buildfiles.count)
         @|endAugment
          |
          |routine rogo_default
+         |  # Builds and runs this project - equivalent to 'rogo build && rogo run'.
          |  rogo_build
      builder.println "  #rogo_install  # Uncomment to automatically install a /usr/local/bin/$ launcher" (project_name.to_lowercase)
      builder.println ...
@@ -190,6 +189,7 @@ if (not buildfiles.count)
          |endRoutine
          |
          |routine rogo_clean
+         |  # Deletes the Build/ folder.
          |  File.delete( "Build" )
          |endRoutine
          |
@@ -205,6 +205,7 @@ if (not buildfiles.count)
          |endRoutine
          |
          |routine rogo_build
+         |  # Recompiles Rogue -> C++ -> Exe if needed. 'rogo rebuild' forces a build.
          |  local source_files = Files( "Source", "**/*.rogue" )
          |  if (source_files.any_newer_than(exe_filepath))
          |    local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
@@ -216,11 +217,13 @@ if (not buildfiles.count)
          |endRoutine
          |
          |routine rogo_debug
+         |  # Recompiles in debug mode.
          |  Build.RELEASE_MODE = false
          |  rogo_rebuild
          |endRoutine
          |
          |routine rogo_rebuild
+         |  # Force-rebuilds project.
          |  compile_rogue
          |  compile_cpp
          |endRoutine
@@ -265,10 +268,12 @@ if (not buildfiles.count)
          |endRoutine
          |
          |routine rogo_run
+         |  # Runs this project.
          |  execute File.esc( exe_filepath )
          |endRoutine
          |
          |routine rogo_install
+         |  # Builds and installs the Exe to a system-appropriate location (see also 'rogo link').
          |  rogo_build
          |  local exe_filepath = File.abs( exe_filepath )
          |  if (System.is_windows)
@@ -310,8 +315,15 @@ if (not buildfiles.count)
          |  endIf
          |endRoutine
          |
+         |routine rogo_link
+         |  # Builds and invokes 'morlock link ...' to add a launcher to Morlock's binpath.
+         |  rogo_build
+         |  execute "morlock link $ $"(exe_filepath,Build.LAUNCHER_NAME)
+         |endRoutine
+         |
          |routine rogo_uninstall
-         |  verbose_delete( "Build" )
+         |  # Cleans the project and uninstalls the launcher from 'rogo install'.
+         |  rogo_clean
          |  if (not System.is_windows) verbose_delete( "$/$"(launcher_folder,Build.LAUNCHER_NAME) )
          |endRoutine
          |
@@ -543,6 +555,8 @@ if (not buildfiles.count)
        |
        |
        |routine rogo_help( command="":String )
+       |  # SYNTAX: rogo help [command]
+       |  # Displays help for a specified command or else all build commands.
        |  command = Build._join( Build.rogo_args )
        |  if (command.count)
        |    local syntax = get_syntax( command )
@@ -555,8 +569,9 @@ if (not buildfiles.count)
        |    endIf
        |    local description = get_description( command )
        |    if (description)
+       |      local max_w = Console.width - 2
        |      println "DESCRIPTION"
-       |      forEach (line in LineReader(description.word_wrapped(76)))
+       |      forEach (line in LineReader(description.word_wrapped(max_w)))
        |        print( "  " ).println( line )
        |      endForEach
        |      println
@@ -575,13 +590,37 @@ if (not buildfiles.count)
        |
        |  println "USAGE"
        |  local lines = String[]
+       |  local max_len = 0
        |  forEach (m in <<Global>>.global_methods)
        |    if (m.name.begins_with(Build.rogo_prefix))
        |      lines.add( "  " + get_syntax(m.name.after_first(Build.rogo_prefix)) )
+       |      max_len .= or_larger( lines.last.count )
        |    endIf
        |  endForEach
+       |
+       |  max_len += 2
+       |  local max_w = Console.width
        |  lines.sort( (a,b)=>(a<b) )
-       |  println (forEach in lines)
+       |  forEach (line in lines)
+       |    print line
+       |    local cmd = line.after_first( "rogo " ).before_first(' ')
+       |    local description = get_description( cmd )
+       |    if (description)
+       |      loop (max_len - line.count) print ' '
+       |      contingent
+       |        sufficient (max_len + description.count <= max_w)
+       |        if (description.contains(". "))
+       |          description = description.before_first( ". " ) + "."
+       |          sufficient (max_len + description.count <= max_w)
+       |        endIf
+       |        necessary (max_len + 10 <= max_w)
+       |        description = description.unright( (description.count - (max_w - max_len))+3 ) + "..."
+       |      satisfied
+       |        print description
+       |      endContingent
+       |    endIf
+       |    println
+       |  endForEach
        |  println
        |endRoutine
        |
@@ -791,7 +830,10 @@ if (needs_recompile)
   endForEach
 
   # Now that we have the config info, rewriting to handle $ LIBRARY(name) etc. Places copies in .rogo/
-  scan_and_rewrite( File(forEach in buildfiles), &skip_directives )
+  scan_autodoc( File(forEach in buildfiles) )
+  forEach (file at index in buildfiles)
+    scan_and_rewrite( file, &skip_directives, &write_autodoc=(index==0) )
+  endForEach
 
   local roguec = config//roguec
   if (not File.exists(roguec)) roguec = "roguec"  # use system default
@@ -1129,12 +1171,76 @@ routine library_flags( library:Value )->String
   return cache//library_flags[library//name]->String
 endRoutine
 
-routine scan_and_rewrite( file:File, dependencies=null:StringLookupList, &skip_rewrite, &skip_directives, &dependencies_only )
+routine scan_autodoc( file:File )
+  local cmd : String
+  local builder = StringBuilder()
+  forEach (line in LineReader(file))
+    line .= trimmed
+    if (line.begins_with("routine rogo_"))
+      cmd = line.after_first('_').before_first('(').before_first(' ')
+      builder.clear
+    elseIf (line.begins_with("routine description"))
+      found_description_routine = true
+      cmd = null
+      builder.clear
+    elseIf (cmd)
+      if (line.begins_with('#'))
+        line = line.unleft(1).trimmed
+        if (line.begins_with("syntax:",&ignore_case))
+          line = line.unleft(7).trimmed
+          if (line.begins_with("rogo ")) line = line.unleft(5).trimmed
+          syntax_info[cmd] = line
+        elseIf (builder.count > 0)
+          builder.println
+          builder.print line
+        elseIf (line != "")
+          builder.print line
+        endIf
+      else
+        # end of autodoc commment
+        if (builder.count)
+          local doc = builder->String
+          local lines = doc.split('\n')
+          local curln : String
+          forEach (nextln in rewriter=lines.rewriter)
+            if (nextln == "")
+              if (curln)
+                rewriter.write( curln )
+                rewriter.write( "" )
+                curln = null
+              endIf
+            elseIf (curln)
+              if (curln.last != ' ') curln += ' '
+              curln += nextln
+            else
+              curln = nextln
+            endIf
+          endForEach
+          if (curln) lines.add( curln )
+          description_info[cmd] = lines.join('\n')
+        endIf
+        cmd = null
+      endIf
+    endIf
+  endForEach
+endRoutine
+
+routine scan_and_rewrite( file:File, dependencies=null:StringLookupList, &skip_rewrite, &skip_directives, &dependencies_only, &write_autodoc )
   # Note: the organization and usage of this method has become inelegant over time. Could use a refactoring.
   if (not file.exists) return
 
   local writer : PrintWriter
   if (not skip_rewrite) writer = PrintWriter( File("$/$"(rogo_folder,file.filename)).writer )
+
+  if (write_autodoc and found_description_routine)
+    forEach (entry in syntax_info.entries)
+      writer.println ''syntax( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
+    endForEach
+    forEach (entry in description_info.entries)
+      writer.println ''description( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
+    endForEach
+  endIf
+
   forEach (original_line in LineReader(file))
     local line = original_line.trimmed
     if (not skip_directives)
