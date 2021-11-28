@@ -3,8 +3,8 @@ Rogue-based imperative build-your-own build system
 
 About     | Current Release
 ----------|-----------------------
-Version   | 1.1.2
-Date      | 2021.10.03
+Version   | 1.2
+Date      | November 27, 2021
 Platforms | Windows, macOS, Linux
 
 

@@ -2,8 +2,8 @@
 # Rogo.rogue
 #================================================================================
 
-$define VERSION "Rogo v1.1.2"
-$define AUTHOR "October 3, 2021 by Abe Pralle"
+$define VERSION "Rogo v1.2"
+$define AUTHOR "November 27, 2021 by Abe Pralle"
 
 #$ ROGUEC       = roguec
 #$ ROGUEC_ARGS  = --whatever
