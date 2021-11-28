@@ -1,3 +1,10 @@
+#================================================================================
+# Rogo.rogue
+#================================================================================
+
+$define VERSION "Rogo v1.1.2"
+$define AUTHOR "October 3, 2021 by Abe Pralle"
+
 #$ ROGUEC       = roguec
 #$ ROGUEC_ARGS  = --whatever
 #$ CPP          = g++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof
@@ -39,6 +46,13 @@ local buildfiles = Buildfiles()
 local should_create = false
 local buildfile : String
 local cmd_line_args = String[]
+
+if (System.command_line_arguments.count == 1 and System.command_line_arguments.first == "--version")
+  println VERSION
+  println AUTHOR
+  System.exit
+endIf
+
 forEach (arg in System.command_line_arguments)
   if (arg == "--build" or arg.begins_with("--build="))
     local cur_buildfile = arg.after_first( '=' )
