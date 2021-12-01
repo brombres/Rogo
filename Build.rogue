@@ -186,6 +186,10 @@ routine rogo_publish( new_version:String )
   execute "gh release create v"+new_version
 endRoutine
 
+routine rogo_link
+  execute "morlock link $ $" (File.esc(exe_filepath),Build.LAUNCHER_NAME)
+endRoutine
+
 routine rogo_clean
   verbose_delete( "Build" )
   if (not System.is_windows) verbose_delete( "$/$"(launcher_folder,Build.LAUNCHER_NAME) )
