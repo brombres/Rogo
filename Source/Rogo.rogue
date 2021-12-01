@@ -220,6 +220,7 @@ if (not buildfiles.count)
          |  # Recompiles in debug mode.
          |  Build.RELEASE_MODE = false
          |  rogo_rebuild
+         |  rogo_run
          |endRoutine
          |
          |routine rogo_rebuild
