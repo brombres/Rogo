@@ -1,3 +1,5 @@
+<p align="center"><img src="Media/Logo.png"></p>
+
 # Rogo
 Rogue-based imperative build-your-own build system
 
