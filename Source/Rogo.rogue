@@ -2,7 +2,7 @@
 # Rogo.rogue
 #================================================================================
 
-$define VERSION "Rogo v1.2.2"
+$define VERSION "Rogo v1.2.3"
 $define AUTHOR "January 21, 2022 by Abe Pralle"
 
 #$ ROGUEC       = roguec
