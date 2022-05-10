@@ -603,29 +603,31 @@ if (not buildfiles.count)
        |  max_len += 2
        |  local max_w = Console.width
        |  lines.sort( (a,b)=>(a<b) )
-       |  forEach (line in lines)
-       |    print line
-       |    local cmd = line.after_first( "rogo " ).before_first(' ')
-       |    local description = get_description( cmd )
-       |    if (description)
-       |      loop (max_len - line.count) print ' '
-       |      contingent
-       |        sufficient (max_len + description.count <= max_w)
-       |        if (description.contains(". "))
-       |          description = description.before_first( ". " ) + "."
+       |  local line_iterator = lines.iterator
+       |  forEach (m in <<Global>>.global_methods)
+       |    if (m.name.begins_with(Build.rogo_prefix))
+       |      local line = line_iterator.read
+       |      print line
+       |      local description = get_description( m.name.after_first(Build.rogo_prefix) )
+       |      if (description)
+       |        loop (max_len - line.count) print ' '
+       |        contingent
        |          sufficient (max_len + description.count <= max_w)
-       |        endIf
-       |        necessary (max_len + 10 <= max_w)
-       |        description = description.unright( (description.count - (max_w - max_len))+3 ) + "..."
-       |      satisfied
-       |        print description
-       |      endContingent
+       |          if (description.contains(". "))
+       |            description = description.before_first( ". " ) + "."
+       |            sufficient (max_len + description.count <= max_w)
+       |          endIf
+       |          necessary (max_len + 10 <= max_w)
+       |          description = description.unright( (description.count - (max_w - max_len))+3 ) + "..."
+       |        satisfied
+       |          print description
+       |        endContingent
+       |      endIf
+       |      println
        |    endIf
-       |    println
        |  endForEach
        |  println
        |endRoutine
-       |
        |
        |routine get_syntax( m_name:String )->String
        |  if (Build.rogo_syntax.contains(m_name))
