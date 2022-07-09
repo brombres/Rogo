@@ -1,0 +1,68 @@
+class CreateGitIgnore
+  PROPERTIES
+    content     : String
+    patterns    = Set<<String>>()
+    is_modified = false
+
+  METHODS
+    method init
+      local gitignore = Rogo.build_folder/".gitignore"
+      if (not gitignore.exists)
+        println "Creating default .gitignore"
+        gitignore.save(
+          @|# Rogo
+           |.rogo
+           |Local.settings
+           |BuildLocal.rogue
+           |/Build
+           |
+           |# Mac
+           |.DS_Store
+           |
+           |# Vim
+           |*.swo
+           |*.swp
+           |*~
+        )
+        return
+      endIf
+
+      content = String(gitignore)
+      if (content.count) content .= with_suffix('\n')
+      patterns.add( forEach in LineReader(content) )
+
+      add_patterns( "# Rogo",
+        @|.rogo
+         |Local.settings
+         |BuildLocal.rogue
+         |/Build
+      )
+
+      add_patterns( "# Mac",
+        @|.DS_Store
+      )
+
+      add_patterns( "# Vim",
+        @|*.swo
+         |*.swp
+         |*~
+      )
+
+      if (is_modified) gitignore.save( content )
+
+    method add_patterns( header:String, lines:String )
+      local any_added = false
+      forEach (line in LineReader(lines))
+        if (not patterns.contains(line))
+          if (not any_added)
+            if (content.count) content.println
+            content.println header
+          endIf
+          content.println line
+          if (not is_modified) println "Updating .gitignore"
+          is_modified = true
+          any_added = true
+        endIf
+      endForEach
+
+endClass

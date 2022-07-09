@@ -12,10 +12,11 @@ augment Build
   # LAUNCHER_FOLDER = "~/bin"
   PROPERTIES
     PROJECT           = "Rogo"
-    LAUNCHER_NAME     = "rogo"
+    LAUNCHER_NAME     = "rogo2"
     LAUNCHER_FOLDER   = "/usr/local/bin"
+    ROGUEC            = "r2"
     ROGUEC_FLAGS      = ""
-    CPP_FLAGS_UNIX    = "-O3"
+    CPP_FLAGS_UNIX    = "-O0"  # FIXME
     CPP_FLAGS_WINDOWS = "/Ob2ity /GF /Gy"
 endAugment
 
@@ -32,7 +33,16 @@ endRoutine
 
 routine rogo_default
   rogo_build
-  #rogo_install  # Uncomment to automatically install a /usr/local/bin/rogo launcher
+  rogo_install  # Uncomment to automatically install a /usr/local/bin/rogo launcher
+  rogo_test
+endRoutine
+
+routine rogo_test
+  local folder = File("Test")
+  #folder.delete
+  folder.create_folder
+  #execute "cd $ && rogo2"(folder)
+  execute "rogo2 --build=Test --create"
 endRoutine
 
 routine rogo_build
@@ -42,20 +52,19 @@ routine rogo_build
     source_files.add( "Build.rogue" )
     local src_filepath = "Source/$.rogue" (Build.PROJECT)
     if (source_files.any_newer_than(exe_filepath))
-      local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
-      if (source_files.any_newer_than(cpp_filepath))
-        execute "roguec $ $ --main --output=$ --target=Console,C++,$"...
-                (File.esc(src_filepath),Build.ROGUEC_FLAGS,File.esc(cpp_filepath),System.os)
+      local c_filepath = "Build/$-$.c" (Build.PROJECT,System.os)
+      if (source_files.any_newer_than(c_filepath))
+        execute "$ $ $ --main --output=$ --target=Console,C++,$"...
+        (Build.ROGUEC,File.esc(src_filepath),Build.ROGUEC_FLAGS,File.esc(c_filepath.before_last(".c")),System.os)
       endIf
       if (System.is_windows)
         local libs = ""
-        local cc = "cl $ /EHsc /nologo $ /FoBuild\\Rogo.obj /Fe$ $" (Build.CPP_FLAGS_WINDOWS,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
-        #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
+        local cc = "cl $ /EHsc /nologo $ /FoBuild\\Rogo.obj /Fe$ $" (Build.CPP_FLAGS_WINDOWS,File.esc(c_filepath),File.esc(exe_filepath),libs)
         execute cc
       else
         local libs = ""
-        local cc = "c++ $ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ -o $$"...
-          (Build.CPP_FLAGS_UNIX,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+        local cc = "gcc $ -Wall $ -o $$"...
+        (Build.CPP_FLAGS_UNIX,File.esc(c_filepath),File.esc(exe_filepath),libs)
         execute cc
       endIf
     endIf
