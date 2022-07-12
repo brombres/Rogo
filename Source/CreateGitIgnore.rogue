@@ -6,7 +6,7 @@ class CreateGitIgnore
 
   METHODS
     method init
-      local gitignore = Rogo.build_folder/".gitignore"
+      local gitignore = Rogo.project_folder/".gitignore"
       if (not gitignore.exists)
         println "Creating default .gitignore"
         gitignore.save(

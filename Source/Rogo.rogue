@@ -10,11 +10,11 @@ $include CreateGitIgnore
 
 #$ ROGUEC       = roguec
 #$ ROGUEC_ARGS  = --whatever
-#$ CPP          = g++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof
-#$ CPP_ARGS     = -a -b -c
-#$ LINK         = true              # Links following LIBRARIES with this Build file
-#$ LINK         = -lalpha -lbeta    # Links following LIBRARIES and includes these additional flags
-#$ LINK         = false             # Linking turned off for following LIBRARIES
+#$ CC           = gcc -Wall
+#$ CC_ARGS      = -a -b -c
+#$ LINK         = -lalpha -lbeta    # Includes these additional flags when linking the buildfile.
+#$ LINK_LIBS    = true              # Links following LIBRARIES with this Build file
+#$ LINK_LIBS    = false             # Linking turned off for following LIBRARIES
 #$ LIBRARIES    = libalpha
 #$ LIBRARIES    = libbeta(library-name)
 #$ LIBRARIES    = libfreetype6-dev(freetype2)
@@ -38,24 +38,27 @@ Rogo
 
 class Rogo [singleton]
   PROPERTIES
-    buildfiles     = Buildfiles()
-    resolved_args  = String[]
-    build_folder   : File
-    rogo_folder    : File
+    buildfiles        = Buildfiles()
+    resolved_args     = String[]
+    project_folder    : File
+    rogo_folder       : File
+    cache_file        : File
+    cache             : Value
+    config            : Value
+    is_cache_modified : Logical
+    link_libraries   = false
+    syntax_info      = [String:String]
+    description_info = [String:String]
+
+    package_manager         = "apt"  # Linux
+    package_manager_install = "sudo apt-get install"
+    package_manager_list    : String
+
+    found_description_routine : Logical
 
 #{
-global cache_filepath : String
-global config         : Value
 global cache          : Value
-global is_cache_modified : Logical
-global link_setting = false
-global package_manager = "apt"
-global package_manager_install = "sudo apt-get install"
-global package_manager_list    : String
 
-global syntax_info      = StringTable<<String>>() : StringTable<<String>>
-global description_info = StringTable<<String>>() : StringTable<<String>>
-global found_description_routine : Logical
 }#
   METHODS
     method init
@@ -94,20 +97,22 @@ global found_description_routine : Logical
       endForEach
 
       if (build_filepath)
-        build_folder = File(build_filepath)
-        if (not build_folder.is_folder)
-          build_folder .= parent
+        project_folder = File(build_filepath)
+        if (not project_folder.is_folder)
+          project_folder .= parent
         endIf
-        rogo_folder = build_folder/".rogo"
+        rogo_folder = project_folder/".rogo"
+        local pwd = (File(".").abs/"").filepath
+        if (rogo_folder.filepath.begins_with(pwd)) rogo_folder = File( rogo_folder.filepath.unleft(pwd.count) )
       else
-        build_folder = File(".")
+        project_folder = File(".")
         rogo_folder = File(".rogo")
       endIf
 
       # These add()s only succeed for files that actually exist.
-      buildfiles.add( build_folder/"Build.rogue" )
-      buildfiles.add( build_folder/"BuildCore.rogue" )
-      buildfiles.add( build_folder/"BuildLocal.rogue" )
+      buildfiles.add( project_folder/"Build.rogue" )
+      buildfiles.add( project_folder/"BuildCore.rogue" )
+      buildfiles.add( project_folder/"BuildLocal.rogue" )
 
       if (not buildfiles.count)
         if (should_create_buildfile)
@@ -138,139 +143,127 @@ global found_description_routine : Logical
         endIf
       endIf
 
-#{
-File.create_folder( rogo_folder )
-cache_filepath = "$/Cache-$.json" (rogo_folder,System.os)
-config         = @{ roguec:"roguec", filepath:cache_filepath }
-cache          = JSON.load_table( File(cache_filepath) )
+      rogo_folder.create_folder
+      cache_file = "$/Cache-$.json" (rogo_folder,System.os)
+      config     = @{ roguec:"roguec", filepath:cache_file.filepath }
+      cache      = JSON.load( cache_file )
 
-local compiler_invocation : String
-native @|#if defined(DEFAULT_CXX)
-        |  $compiler_invocation = RogueString_create_from_utf8( DEFAULT_CXX );
-        |#else
-           which (System.os)
-             case "Windows"
-               compiler_invocation = "cl /EHsc /nologo"
-             others
-               compiler_invocation = "g++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof"
-           endWhich
-native @|#endif
-
-config//cpp = compiler_invocation
-
-local exe : String
-if (rogo_folder is null)
-  rogo_folder = buildfiles[0]
-  exe = "$$Build" (rogo_folder,File.separator)
-else
-  exe = "$$$" (rogo_folder,File.separator,File.filename(rogo_folder).before_first('.'))
-endIf
-local base_name = exe   # e.g. Build
-if (System.os == "Windows") exe += ".exe"
-else                        exe += "-" + System.os  # e.g. Build-macOS
-
-configure_os
-
-local needs_recompile = buildfiles.any_newer_than( exe )
-block
-  local dependencies = StringLookupList()
-  scan_and_rewrite( File(forEach in buildfiles), dependencies, &skip_rewrite, &dependencies_only )
-
-  local i = 0
-  while (i < dependencies.count)
-    local pattern = dependencies[ i ]
-    local listing = File.listing( pattern, &files )
-    forEach (dependency in listing)
-      if (File.filename(dependency).begins_with("Build") and not buildfiles.contains(dependency))
-        scan_and_rewrite( dependency, dependencies, &skip_rewrite )
-      endIf
-    endForEach
-    ++i
-  endWhile
-
-  forEach (pattern in dependencies)
-    local listing = File.listing( pattern, &files )
-    forEach (dependency in listing)
-      if (File.is_newer_than(dependency,exe))
-        needs_recompile = true
-        escapeBlock
-      endIf
-    endForEach
-  endForEach
-endBlock
-
-if (needs_recompile)
-  println "Recompiling $..." (rogo_folder)
-
-  update_old_buildfiles( buildfiles )
-
-  # Collect info for config
-  scan_and_rewrite( File(forEach in buildfiles), &skip_rewrite )
-
-  # Select ROGUEC(macOS) or ROGUEC(Linux) etc. based on the OS and merge into to ROGUEC, etc.
-  local os_arg = "($)" (System.os.to_lowercase)
-  local os_arg_plus_package_manager = "($-$)" (System.os.to_lowercase,package_manager)
-  forEach (key in config.keys)
-    if (key.contains(os_arg) or key.contains(os_arg_plus_package_manager))
-      local generic_key = key.before_first('(')
-      if (config.contains(generic_key) and generic_key != "cpp" and generic_key != "roguec")
-        # Merge specialized-platform keys with generic keys
-        if (generic_key == "libraries")
-          # Overwrite same-name libraries
-          local table = @{}
-          forEach (item in config[generic_key]) table[item//name] = item
-          forEach (item in config[key])         table[item//name] = item
-          config[ generic_key ] = table.values
-        else
-          # Append specialized keys to end of generic key string
-          config[ generic_key ] += " " + config[key]
-        endIf
+      if (System.is_windows)
+        config//cc = "cl /EHsc /nologo"
       else
-        config[ generic_key ] = config[ key ]
+        config//cc = "gcc -Wall"
       endIf
-    endIf
-  endForEach
 
-  # Now that we have the config info, rewriting to handle $ LIBRARY(name) etc. Places copies in .rogo/
-  scan_autodoc( File(forEach in buildfiles) )
-  forEach (file at index in buildfiles)
-    scan_and_rewrite( file, &skip_directives, &write_autodoc=(index==0) )
-  endForEach
+      local base_name = rogo_folder/"Build"
+      local exe       = base_name
+      if (System.is_windows) exe += ".exe"           # .rogo/Build.exe
+      else                   exe += "-" + System.os  # .rogo/Build-macOS (etc.)
 
-  local roguec = config//roguec
-  if (not File.exists(roguec)) roguec = "roguec"  # use system default
-  local roguec_args = config//roguec_args->String
-  local cmd =  "$ --target=C++,Console,$" (roguec,System.os)
-  cmd += " $$$" (rogo_folder,File.separator,File.filename(forEach in buildfiles))
-  cmd += " --api --debug --main --output=$ $" (base_name,roguec_args)
-  println cmd
-  if (0 != System.run(cmd))
-    Global.error.println "ERROR compiling $." (rogo_folder)
-    System.exit 1
-  endIf
+      configure_os
 
-  cmd = "$ $ $.cpp" (config//cpp,config//cpp_args,base_name)
+      local needs_recompile = buildfiles.any_newer_than( exe )
 
-  local is_windows = (System.os == "Windows")
+      block
+        # Process DEPENDENCIES
+        local dependencies = Set<<String>>()
+        collect_dependencies( File(forEach in buildfiles), dependencies )
 
-  forEach (library in config//libraries)
-    install_library( library )
-    if (library//link)
-      cmd += " $" (library_flags(library))
-    endIf
-  endForEach
+        forEach (pattern in dependencies.values)
+          local listing = File( pattern ).listing( &files )
+          forEach (dependency in listing)
+            if (File(dependency).filename.begins_with("Build") and not buildfiles.contains(dependency))
+              collect_directives( File(dependency), dependencies )
+            endIf
+          endForEach
+        endForEach
 
-  cmd += " $$" (?:{is_windows:"/Fe"||"-o "},exe)
-  local link_args = config//link
-  if (link_args != "") cmd += " " + link_args
+        forEach (pattern in dependencies.values)
+          local listing = File( pattern ).listing( &files )
+          forEach (dependency in listing)
+            if (File(dependency).is_newer_than(exe))
+              needs_recompile = true
+              escapeBlock
+            endIf
+          endForEach
+        endForEach
+      endBlock
 
-  println cmd
-  if (0 != System.run(cmd)) System.exit( 1 )
-  File.delete( File.filename(exe).before_last(".exe") + ".obj" )
-endIf
+      if (needs_recompile)
+        println "Recompiling $..." (File(buildfiles.first).filename)
 
+        # Collect info for config
+        collect_directives( File(forEach in buildfiles) )
+
+        # Select ROGUEC(macOS) or ROGUEC(Linux) etc. based on the OS and merge into to ROGUEC, etc.
+        local os_arg = "($)" (System.os.to_lowercase)
+        local os_arg_plus_package_manager = "($-$)" (System.os.to_lowercase,package_manager)
+        forEach (key in config.keys)
+          if (key.contains(os_arg) or key.contains(os_arg_plus_package_manager))
+            local generic_key = key.before_first('(')
+            if (config.contains(generic_key) and generic_key != "cc" and generic_key != "roguec")
+              # Merge specialized-platform keys with generic keys
+              if (generic_key == "libraries")
+                # Overwrite same-name libraries
+                local table = @{}
+                forEach (item in config[generic_key]) table[item//name] = item
+                forEach (item in config[key])         table[item//name] = item
+                config[ generic_key ] = table.values
+              else
+                # Append specialized keys to end of generic key string
+                config[ generic_key ] += " " + config[key]
+              endIf
+            else
+              config[ generic_key ] = config[ key ]
+            endIf
+          endIf
+        endForEach
+
+        # Now that we have the config info, rewriting to handle $+LIBRARY(name) etc. Places copies in .rogo/
+        scan_autodoc( File(forEach in buildfiles) )
+        forEach (file at index in buildfiles)
+          scan_and_rewrite( File(file), &write_autodoc=(index==0) )
+        endForEach
+
+        local roguec = config//roguec
+        if (not File(roguec).exists) roguec = "r2"  # use system default
+        local roguec_args = config//roguec_args->String
+        local cmd =  "$ --target=C++,Console,$" (roguec,System.os)
+        cmd += " " + (File(forEach in buildfiles).esc)
+        cmd += " --api --debug --main --output=$ $" (base_name,roguec_args)
+        println cmd
+
+        if (0 != System.run(cmd))
+          Global.error.println "ERROR compiling $." (rogo_folder)
+          System.exit 1
+        endIf
+
+        #{
+        cmd = "$ $ $.c" (config//cc,config//cc_args,base_name)
+
+        local is_windows = (System.os == "Windows")
+
+        forEach (library in config//libraries)
+          install_library( library )
+          if (library//link)
+            cmd += " $" (library_flags(library))
+          endIf
+        endForEach
+
+        cmd += " $$" (?:{is_windows:"/Fe"||"-o "},exe)
+        local link_args = config//link
+        if (link_args != "") cmd += " " + link_args
+
+        println cmd
+        if (0 != System.run(cmd)) System.exit( 1 )
+        File.delete( File.filename(exe).before_last(".exe") + ".obj" )
+        }#
+      endIf
+
+#{
 System.exit( System.run(''$ $'' (exe,cmd_line_args.map<<String>>( (arg)=>prep_arg(arg) ).join(" "))) )
+}#
 
+#{
 routine prep_arg( arg:String )->String
   # Quotes and escapes string if necessary
   if (not (arg.contains(' ') or arg.contains('"') or arg.contains('\\'))) return arg
@@ -286,434 +279,429 @@ routine prep_arg( arg:String )->String
   quoted.print( '"' )
   return quoted
 endRoutine
+}#
 
-routine require_command_line
-  if (System.environment["IDE"])
-    throw Error( "$:$: error:Run 'make $' from the command line to install necessary libraries."...
-    ($sourceFilepath,$sourceLine,which{System.environment["TARGET"]||""}.to_lowercase) )
-  endIf
-endRoutine
-
-
-routine save_cache
-  is_cache_modified = false
-  cache.save( File(cache_filepath), &formatted )
-endRoutine
-
-routine configure_os
-  which (System.os)
-    case "macOS"
-      configure_macos
-    case "Linux"
-      configure_linux
-  endWhich
-endRoutine
-
-routine configure_macos
-  if (0 != System.run("which brew > /dev/null 2>&1"))
-    require_command_line
-    if (Console.input( "\nHomebrew must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
-      local cmd = @|/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-      println cmd
-      if (0 != System.run(cmd))
-        throw Error( "Failed to install Homebrew." )
-      endIf
-    else
-      throw Error( "Missing required dependency 'brew' (Homebrew)." )
+  method require_command_line
+    if (System.env["IDE"])
+      throw Error( "$:$: error:Run 'make $' from the command line to install necessary libraries."...
+      ($sourceFilepath,$sourceLine,which{System.env["TARGET"]||""}.to_lowercase) )
     endIf
 
-  endIf
+  method save_cache
+    is_cache_modified = false
+    cache_file.save( cache.to_json(&formatted) )
 
-  if (0 != System.run("which pkg-config > /dev/null 2>&1"))
-    require_command_line
-    if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
-      local cmd = @|brew install pkg-config
-      println cmd
-      if (0 != System.run(cmd))
-        throw Error( "Failed to install pkg-config." )
-      endIf
-    else
-      throw Error( "Missing required dependency 'pkg-config'." )
-    endIf
+  method configure_os
+    if (System.is_macos)     configure_macos
+    elseIf (System.is_linux) configure_linux
 
-  endIf
-endRoutine
-
-routine configure_linux
-  if (0 != System.run("which apt-get > /dev/null 2>&1"))
-    if (0 == System.run("which yum > /dev/null 2>&1"))
-      package_manager = "yum"
-      package_manager_install = "sudo yum install"
-      package_manager_list    = "rpm -ql"
-    endIf
-  endIf
-
-  if (0 != System.run("which pkg-config > /dev/null 2>&1"))
-    require_command_line
-    if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
-      local cmd = package_manager_install + " pkg-config"
-      println cmd
-      if (0 != System.run(cmd))
-        throw Error( "Failed to install pkg-config." )
-      endIf
-    else
-      throw Error( "Missing required dependency 'pkg-config'." )
-    endIf
-  endIf
-endRoutine
-
-routine install_library( library:Value )
-  local lib = cache//library_flags[ library//name ]
-  if (lib)
-    # Make sure each filepath actually exists
-    block lib = lib->String
-      local parts = String[]
-      local i = locate_nonescaped_space( lib )
-      while (i)
-        local part = lib.leftmost( i.value )
-        if (String.exists(part)) parts.add( part )
-        lib .= from( i.value+1 )
-        i = locate_nonescaped_space( lib )
-      endWhile
-      if (String.exists(lib)) parts.add( lib )
-
-      contingent
-        forEach (part in parts)
-          part .= after_any( "-I" )
-          necessary (File.exists(part))
-        endForEach
-      satisfied
-        return
-      endContingent
-    endBlock
-  endIf
-
-  which (System.os)
-    case "macOS"
-      install_macos_library( library )
-    case "Linux"
-      install_linux_library( library )
-    others
-      throw Error( ''Rogo does not know how to install a library for "$".'' (System.os) )
-  endWhich
-endRoutine
-
-routine locate_nonescaped_space( st:String )->Int32?
-  local skip = false
-  forEach (ch at index in st)
-    if (skip)
-      skip = false
-    else
-      which (ch)
-        case '\\': skip = true
-        case ' ':  return index
-      endWhich
-    endIf
-  endForEach
-
-  return null
-endRoutine
-
-routine run( cmd:String )->String
-  println(cmd).flush
-  local result = Process.run( cmd, &env )
-  if (result.exit_code != 0) return null
-  return result.output_string.trimmed
-endRoutine
-
-routine find_macos_library( library:Value )->Logical
-  local name = library//name->String
-  local package = library//package->String
-
-  local result = run( "  pkg-config --cflags " + package )
-  if (result)
-    local flags = String[]
-
-    # cflags
-    flags.add( result )
-
-    # library( link:... ) flags
-    if (library//link and not library//link.is_logical)
-      # If the link flags are more than just 'true'.
-      flags.add( library//link )
-    endIf
-
-    # static library path
-    local candidates : String[]
-    result = run( "  pkg-config --libs-only-L " + package )
-    if (result and result.begins_with("-L"))
-      candidates = File.listing( result.from(2) )
-    else
-      result = run( "  brew list -v " + name )
-      if (result)
-        candidates = result.split( '\n' )
-      endIf
-    endIf
-
-    if (candidates)
-      candidates.keep( $.ends_with(".a") )
-      if (candidates.count) flags.add( candidates.first )  # .a file to link in
-    else
-      return false
-    endIf
-
-    local all_flags = flags.join( ' ' )
-    println "  Library flags: $" (all_flags)
-    cache.ensure_table("library_flags")[ name ] = all_flags
-    save_cache
-    return true
-  endIf
-
-  # "Library" may be executable package - use 'which' to check.
-  println "  which " + library["which"]
-  if (0 == System.run("which $ > /dev/null 2>&1"(library["which"])))
-    local flags = which{ library//link || Value("") }
-    if (flags != "") println "  Library flags: $" (flags)
-    cache.ensure_table("library_flags")[ name ] = flags  # package exists but has no flags
-    save_cache
-    return true
-  endIf
-
-  return false
-endRoutine
-
-routine install_macos_library( library:Value )
-  local library_name = library//name->String
-  println "Checking for library $..." (library_name)
-
-  if (not find_macos_library(library))
-    # Install library
-    require_command_line
-    if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
-      throw Error( "Missing required library '$'." (library_name) )
-    endIf
-
-    # Two install options:
-    #   libname                 - install libname
-    #   libname(install:"cmd")  - install cmd
-    local install_cmd = library//name
-    if (library.contains("install")) install_cmd = library//install
-
-    run( "brew install $" (install_cmd) )  # this could succeed in principal but return non-zero with a warning, as with zlib
-    if (not find_macos_library(library))
-      throw Error( "Failed to install library '$'." (library_name) )
-    endIf
-  endIf
-endRoutine
-
-routine find_linux_library( library:Value )->Logical
-  local name = library//name->String
-  local package = library//package->String
-
-  # Try pkg-config first
-  local result = run( "  pkg-config --cflags --libs " + package )
-  if (result)
-    local flags = result
-    println "  Library flags: $" (flags)
-    cache.ensure_table("library_flags")[ name ] = flags
-    save_cache
-    return true
-  endIf
-
-  # Next try rpm -ql for Yum+RPM Linux
-  if (package_manager_list)
-    println "  No found with pkg-config; checking with rpm"
-    result = run( "  $ $" (package_manager_list,package) )
-    if (result)
-      println "  Located"
-      cache.ensure_table("library_flags")[ name ] = ""  # library exists but has no flags
-      save_cache
-      return true
-    endIf
-  endIf
-
-  # "Library" may be executable package - use 'which' to check.
-  println "  which " + library["which"]
-  if (0 == System.run("which $ > /dev/null 2>&1"(library["which"])))
-    cache.ensure_table("library_flags")[ name ] = ""  # package exists but has no flags
-    save_cache
-    return true
-  endIf
-
-  return false
-endRoutine
-
-routine install_linux_library( library:Value )
-  local library_name = library//name->String
-
-  println "Checking for library $..." (library//name->String)
-
-  if (not find_linux_library(library))
-    # Install library
-    require_command_line
-    if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
-      throw Error( "Missing required library '$'." (library_name) )
-    endIf
-
-    # Two install options:
-    #   libname                 - install libname
-    #   libname(install:"cmd")  - install cmd
-    local install_cmd = library//name
-    if (library.contains("install")) install_cmd = library//install
-
-    local cmd = "$ $" (package_manager_install,install_cmd)
-    print "> "
-    println cmd
-    if (System.run(cmd) or not find_linux_library(library))
-      throw Error( "Failed to install library '$'." (library_name) )
-    endIf
-  endIf
-endRoutine
-
-routine library_flags( library:Value )->String
-  if (not cache//library_flags.contains(library//name))
-    install_library( library )
-  endIf
-
-  return cache//library_flags[library//name]->String
-endRoutine
-
-routine scan_autodoc( file:File )
-  local cmd : String
-  local builder = StringBuilder()
-  forEach (line in LineReader(file))
-    line .= trimmed
-    if (line.begins_with("routine rogo_"))
-      cmd = line.after_first('_').before_first('(').before_first(' ')
-      builder.clear
-    elseIf (line.begins_with("routine description"))
-      found_description_routine = true
-      cmd = null
-      builder.clear
-    elseIf (cmd)
-      if (line.begins_with('#'))
-        line = line.unleft(1).trimmed
-        if (line.begins_with("syntax:",&ignore_case))
-          line = line.unleft(7).trimmed
-          if (line.begins_with("rogo ")) line = line.unleft(5).trimmed
-          syntax_info[cmd] = line
-        elseIf (builder.count > 0)
-          builder.println
-          builder.print line
-        elseIf (line != "")
-          builder.print line
+  method configure_macos
+    if (0 != System.run("which brew > /dev/null 2>&1"))
+      require_command_line
+      if (Console.input( "\nHomebrew must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
+        local cmd = @|/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        println cmd
+        if (0 != System.run(cmd))
+          throw Error( "Failed to install Homebrew." )
         endIf
       else
-        # end of autodoc commment
-        if (builder.count)
-          local doc = builder->String
-          local lines = doc.split('\n')
-          local curln : String
-          forEach (nextln in rewriter=lines.rewriter)
-            if (nextln == "")
-              if (curln)
-                rewriter.write( curln )
-                rewriter.write( "" )
-                curln = null
-              endIf
-            elseIf (curln)
-              if (curln.last != ' ') curln += ' '
-              curln += nextln
-            else
-              curln = nextln
-            endIf
-          endForEach
-          if (curln) lines.add( curln )
-          description_info[cmd] = lines.join('\n')
-        endIf
-        cmd = null
+        throw Error( "Missing required dependency 'brew' (Homebrew)." )
       endIf
     endIf
-  endForEach
-endRoutine
 
-routine scan_and_rewrite( file:File, dependencies=null:StringLookupList, &skip_rewrite, &skip_directives, &dependencies_only, &write_autodoc )
-  # Note: the organization and usage of this method has become inelegant over time. Could use a refactoring.
-  if (not file.exists) return
+    if (0 != System.run("which pkg-config > /dev/null 2>&1"))
+      require_command_line
+      if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
+        local cmd = @|brew install pkg-config
+        println cmd
+        if (0 != System.run(cmd))
+          throw Error( "Failed to install pkg-config." )
+        endIf
+      else
+        throw Error( "Missing required dependency 'pkg-config'." )
+      endIf
+    endIf
 
-  local writer : PrintWriter
-  if (not skip_rewrite) writer = PrintWriter( File("$/$"(rogo_folder,file.filename)).writer )
+  method configure_linux
+    if (0 != System.run("which apt-get > /dev/null 2>&1"))
+      if (0 == System.run("which yum > /dev/null 2>&1"))
+        package_manager = "yum"
+        package_manager_install = "sudo yum install"
+        package_manager_list    = "rpm -ql"
+      endIf
+    endIf
 
-  if (write_autodoc and found_description_routine)
-    forEach (entry in syntax_info.entries)
-      writer.println ''syntax( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
-    endForEach
-    forEach (entry in description_info.entries)
-      writer.println ''description( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
-    endForEach
-  endIf
+    if (0 != System.run("which pkg-config > /dev/null 2>&1"))
+      require_command_line
+      if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
+        local cmd = package_manager_install + " pkg-config"
+        println cmd
+        if (0 != System.run(cmd))
+          throw Error( "Failed to install pkg-config." )
+        endIf
+      else
+        throw Error( "Missing required dependency 'pkg-config'." )
+      endIf
+    endIf
 
-  forEach (original_line in LineReader(file))
-    local line = original_line.trimmed
-    if (not skip_directives)
-      if (line.begins_with("#$"))
-        local cmd = line.rightmost( -2 )
-        local args = cmd.after_first( "=" ).trimmed
-        cmd = cmd.before_first( "=" ).trimmed.to_lowercase
+    method install_library( library:Value )
+      local lib = cache//library_flags[ library//name ]
+      if (lib)
+        # Make sure each filepath actually exists
+        block lib = lib->String
+          local parts = String[]
+          local i = locate_nonescaped_space( lib )
+          while (i)
+            local part = lib.leftmost( i.value )
+            if (String.exists(part)) parts.add( part )
+            lib .= from( i.value+1 )
+            i = locate_nonescaped_space( lib )
+          endWhile
+          if (String.exists(lib)) parts.add( lib )
 
-        local base_cmd = cmd.before_first('(')
-        which (base_cmd)
-          case "config", "roguec"
-            if (not dependencies_only)
+          contingent
+            forEach (part in parts)
+              part .= after_any( "-I" )
+              necessary (File(part).exists)
+            endForEach
+          satisfied
+            return
+          endContingent
+        endBlock
+      endIf
+
+      which (System.os)
+        case "macOS"
+          install_macos_library( library )
+        case "Linux"
+          install_linux_library( library )
+        others
+          throw Error( ''Rogo does not know how to install a $ library.'' (System.os) )
+      endWhich
+
+    method locate_nonescaped_space( st:String )->Int32?
+      local skip = false
+      forEach (ch at index in st)
+        if (skip)
+          skip = false
+        else
+          which (ch)
+            case '\\': skip = true
+            case ' ':  return index
+          endWhich
+        endIf
+      endForEach
+
+      return null
+
+    method run( cmd:String )->String
+      println( cmd )
+      local result = Process.run( cmd, &env )
+      if (result.exit_code != 0) return null
+      return result.output_string.trimmed
+
+    method find_macos_library( library:Value )->Logical
+      local name = library//name->String
+      local package = library//package->String
+
+      local result = run( "  pkg-config --cflags " + package )
+      if (result)
+        local flags = String[]
+
+        # cflags
+        flags.add( result )
+
+        # library( link:... ) flags
+        if (library//link and not library//link.is_logical)
+          # If the link flags are more than just 'true'.
+          flags.add( library//link )
+        endIf
+
+        # static library path
+        local candidates : String[]
+        result = run( "  pkg-config --libs-only-L " + package )
+        if (result and result.begins_with("-L"))
+          candidates = File( result.from(2) ).listing
+        else
+          result = run( "  brew list -v " + name )
+          if (result)
+            candidates = result.split( '\n' )
+          endIf
+        endIf
+
+        if (candidates)
+          candidates.keep( $.ends_with(".a") )
+          if (candidates.count) flags.add( candidates.first )  # .a file to link in
+        else
+          return false
+        endIf
+
+        local all_flags = flags.join( ' ' )
+        println "  Library flags: $" (all_flags)
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = all_flags
+        save_cache
+        return true
+      endIf
+
+      # "Library" may be executable package - use 'which' to check.
+      println "  which " + library["which"]
+      if (0 == System.run("which $ > /dev/null 2>&1"(library["which"])))
+        local flags = which{ library//link || Value("") }
+        if (flags != "") println "  Library flags: $" (flags)
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = flags
+        save_cache
+        return true
+      endIf
+
+      return false
+
+    method install_macos_library( library:Value )
+      local library_name = library//name->String
+      println "Checking for library $..." (library_name)
+
+      if (not find_macos_library(library))
+        # Install library
+        require_command_line
+        if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
+          throw Error( "Missing required library '$'." (library_name) )
+        endIf
+
+        # Two install options:
+        #   libname                 - install libname
+        #   libname(install:"cmd")  - install cmd
+        local install_cmd = library//name
+        if (library.contains("install")) install_cmd = library//install
+
+        run( "brew install $" (install_cmd) )  # this could succeed in principal but return non-zero with a warning, as with zlib
+        if (not find_macos_library(library))
+          throw Error( "Failed to install library '$'." (library_name) )
+        endIf
+      endIf
+
+    method find_linux_library( library:Value )->Logical
+      local name = library//name->String
+      local package = library//package->String
+
+      # Try pkg-config first
+      local result = run( "  pkg-config --cflags --libs " + package )
+      if (result)
+        local flags = result
+        println "  Library flags: $" (flags)
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = flags
+        save_cache
+        return true
+      endIf
+
+      # Next try rpm -ql for Yum+RPM Linux
+      if (package_manager_list)
+        println "  No found with pkg-config; checking with rpm"
+        result = run( "  $ $" (package_manager_list,package) )
+        if (result)
+          println "  Located"
+          if (not cache//library_flags) cache//library_flags = @{}
+          cache//library_flags[name] = "" # library exists but has no flags
+          save_cache
+          return true
+        endIf
+      endIf
+
+      # "Library" may be executable package - use 'which' to check.
+      println "  which " + library["which"]
+      if (0 == System.run("which $ > /dev/null 2>&1"(library["which"])))
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = "" # library exists but has no flags
+        save_cache
+        return true
+      endIf
+
+      return false
+
+    method install_linux_library( library:Value )
+      local library_name = library//name->String
+
+      println "Checking for library $..." (library//name->String)
+
+      if (not find_linux_library(library))
+        # Install library
+        require_command_line
+        if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
+          throw Error( "Missing required library '$'." (library_name) )
+        endIf
+
+        # Two install options:
+        #   libname                 - install libname
+        #   libname(install:"cmd")  - install cmd
+        local install_cmd = library//name
+        if (library.contains("install")) install_cmd = library//install
+
+        local cmd = "$ $" (package_manager_install,install_cmd)
+        print "> "
+        println cmd
+        if (System.run(cmd) or not find_linux_library(library))
+          throw Error( "Failed to install library '$'." (library_name) )
+        endIf
+      endIf
+
+    method library_flags( library:Value )->String
+      if (not cache//library_flags.contains(library//name))
+        install_library( library )
+      endIf
+
+      return cache//library_flags[library//name]->String
+
+    method scan_autodoc( file:File )
+      local cmd : String
+      use builder = StringPool
+        forEach (line in LineReader(file))
+          line .= trimmed
+          if (line.begins_with("routine rogo_"))
+            cmd = line.after_first('_').before_first('(').before_first(' ')
+            builder.clear
+          elseIf (line.begins_with("routine description"))
+            found_description_routine = true
+            cmd = null
+            builder.clear
+          elseIf (cmd)
+            if (line.begins_with('#'))
+              line = line.unleft(1).trimmed
+              if (line.begins_with("syntax:",&ignore_case))
+                line = line.unleft(7).trimmed
+                if (line.begins_with("rogo ")) line = line.unleft(5).trimmed
+                syntax_info[cmd] = line
+              elseIf (builder.count > 0)
+                builder.println
+                builder.print line
+              elseIf (line != "")
+                builder.print line
+              endIf
+            else
+              # end of autodoc commment
+              if (builder.count)
+                local doc = builder->String
+                local lines = doc.split('\n')
+                local curln : String
+                forEach (nextln in rewriter=lines.rewriter)
+                  if (nextln == "")
+                    if (curln)
+                      rewriter.write( curln )
+                      rewriter.write( "" )
+                      curln = null
+                    endIf
+                  elseIf (curln)
+                    if (curln.last != ' ') curln += ' '
+                    curln += nextln
+                  else
+                    curln = nextln
+                  endIf
+                endForEach
+                if (curln) lines.add( curln )
+                description_info[cmd] = lines.join('\n')
+              endIf
+              cmd = null
+            endIf
+          endIf
+        endForEach
+      endUse
+
+    method collect_dependencies( file:File, dependencies:Set<<String>> )
+      if (not file.exists) return
+
+      forEach (line in LineReader(file))
+        line .= trimmed
+        if (line.begins_with("#$"))
+          local cmd = line.rightmost( -2 )
+          local args = cmd.after_first( "=" ).trimmed
+          cmd = cmd.before_first( "=" ).trimmed.to_lowercase
+
+          local base_cmd = cmd.before_first('(')
+          which (base_cmd)
+            case "dependencies"
+              if (dependencies)
+                if (args.begins_with('"'))      args = args.after_first('"').before_last('"')
+                elseIf (args.begins_with('\'')) args = args.after_first('\'').before_last('\'')
+                dependencies.add( args )
+                is_cache_modified = true
+              endIf
+          endWhich
+        endIf
+
+      endForEach
+
+    method collect_directives( file:File, dependencies=null:Set<<String>> )
+      if (not file.exists) return
+
+      forEach (line in LineReader(file))
+        if (line.begins_with("#$"))
+          local cmd = line.rightmost( -2 )
+          local args = cmd.after_first( "=" ).trimmed
+          cmd = cmd.before_first( "=" ).trimmed.to_lowercase
+
+          local base_cmd = cmd.before_first('(')
+          which (base_cmd)
+            case "config", "roguec"
               if (args.begins_with('"')) args = args.after_first('"').before_last('"')
               elseIf (args.begins_with('\'')) args = args.after_first('\'').before_last('\'')
               config[ cmd ] = args
-            endIf
 
-          case "libraries"
-            if (args.count and not dependencies_only)
-              local parser = JSONParser( Scanner(args) )
-              parser.consume_spaces
-              while (parser.has_another)
-                local name = parse_filepath( parser )
-                local entry = @{ name:name, link:link_setting }
-                config.ensure_list( cmd ).add( entry )
+            case "libraries"
+              if (args.count)
+                local parser = JSONParser( Scanner(args) )
                 parser.consume_spaces
-                entry//package = name.before_first( "-dev" )  # default of e.g. libpng-dev is libpng
-                entry["which"] = name
-                if (parser.consume('('))
+                while (parser.has_another)
+                  local name = parse_filepath( parser )
+                  local entry = @{ name:name, link:link_libraries }
+                  if (config[cmd]) config[cmd].add( entry )
+                  else             config[cmd] = @[]
                   parser.consume_spaces
-                  while (parser.has_another)
-                    if (parser.consume(')')) escapeWhile
-                    local key = parser.parse_identifier
+                  entry//package = name.before_first( "-dev" )  # default of e.g. libpng-dev is libpng
+                  entry["which"] = name
+                  if (parser.consume('('))
                     parser.consume_spaces
-                    if (parser.consume(':'))
+                    while (parser.has_another)
+                      if (parser.consume(')')) escapeWhile
+                      local key = parser.parse_identifier
                       parser.consume_spaces
-                      local value = parse_filepath( parser )
-                      entry[ key ] = value
-                    else
-                      # An identifier with no mapped value is treated as the package name
-                      entry//package = key
-                    endIf
-                    parser.consume_spaces
-                    parser.consume( ',' )
-                    parser.consume_spaces
-                  endWhile
-                endIf
-                parser.consume_spaces
-              endWhile
-            endIf
+                      if (parser.consume(':'))
+                        parser.consume_spaces
+                        local value = parse_filepath( parser )
+                        entry[ key ] = value
+                      else
+                        # An identifier with no mapped value is treated as the package name
+                        entry//package = key
+                      endIf
+                      parser.consume_spaces
+                      parser.consume( ',' )
+                      parser.consume_spaces
+                    endWhile
+                  endIf
+                  parser.consume_spaces
+                endWhile
+              endIf
 
-          case "dependencies"
-            if (dependencies)
-              if (args.begins_with('"'))       args = args.after_first('"').before_last('"')
-              elseIf (args.begins_with('\'')) args = args.after_first('\'').before_last('\'')
-              dependencies.add( args )
-              is_cache_modified = true
-            endIf
+            case "dependencies"
+              if (dependencies)
+                if (args.begins_with('"'))      args = args.after_first('"').before_last('"')
+                elseIf (args.begins_with('\'')) args = args.after_first('\'').before_last('\'')
+                dependencies.add( args )
+                is_cache_modified = true
+              endIf
 
-          others
-            if (not dependencies_only)
+            others
               if (base_cmd == "link")
                 if (cmd == "link" or cmd == "link($)" (System.os.to_lowercase))
+                  if (config[cmd]?) config[cmd] += " " + args
+                  else              config[cmd] = args
+                endIf
+
+              elseIf (base_cmd == "link_libs")
+                if (cmd == "link_libs" or cmd == "link_libs($)" (System.os.to_lowercase))
                   if (args == "true" or args == "false")
-                    # LINK true or LINK false
-                    link_setting = (args == "true")
+                    link_libraries = (args == "true")
                   else
-                    # LINK <args> implies LINK true
-                    link_setting = true
-                    if (config[cmd]?) config[cmd] += " " + args
-                    else              config[cmd] = args
+                    link_libraries = true
                   endIf
                 endIf
 
@@ -725,129 +713,74 @@ routine scan_and_rewrite( file:File, dependencies=null:StringLookupList, &skip_r
                   config[ cmd ] = args
                 endIf
               endIf
+
+          endWhich
+        endIf
+      endForEach
+
+    method scan_and_rewrite( file:File, &write_autodoc )
+      if (not file.exists) return
+
+      local writer = File("$/$"(rogo_folder,file.filename)).print_writer
+
+      if (write_autodoc and found_description_routine)
+        forEach (entry in syntax_info.entries)
+          writer.println ''syntax( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
+        endForEach
+        forEach (entry in description_info.entries)
+          writer.println ''description( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
+        endForEach
+      endIf
+
+      forEach (line in LineReader(file))
+        local dollar = line.locate( '$' )
+        while (dollar.exists)
+          if (line.contains_at("$LIBRARY_FLAGS(",dollar.value))
+            local close_paren = line.locate( ')', dollar.value + 1 )
+            if (close_paren.exists)
+              local replacement = ""
+              forEach (library_name in line.from(dollar.value,close_paren.value-1).after_first('(').split(','))
+                library_name = library_name.trimmed
+                block
+                  forEach (lib in config//libraries)
+                    if (lib//name == library_name)
+                      if (replacement.count > 0) replacement += " "
+                      replacement += library_flags( lib )
+                      escapeBlock
+                    endIf
+                  endForEach
+                endBlock
+              endForEach
+              line = "$$$" (line.before(dollar.value),replacement,line.after(close_paren.value))
             endIf
-
-        endWhich
-      endIf
-    endIf
-
-    if (not skip_rewrite)
-      line = original_line
-      local dollar = line.locate( '$' )
-      while (dollar.exists)
-        if (line.contains_at("$LIBRARY_FLAGS(",dollar.value))
-          local close_paren = line.locate( ')', dollar.value + 1 )
-          if (close_paren.exists)
-            local replacement = ""
-            forEach (library_name in line.from(dollar.value,close_paren.value-1).after_first('(').split(','))
-              library_name = library_name.trimmed
-              block
-                forEach (lib in config//libraries)
-                  if (lib//name == library_name)
-                    if (replacement.count > 0) replacement += " "
-                    replacement += library_flags( lib )
-                    escapeBlock
-                  endIf
-                endForEach
-              endBlock
-            endForEach
-            line = "$$$" (line.before(dollar.value),replacement,line.after(close_paren.value))
           endIf
-        endIf
-        dollar = line.locate( '$', dollar.value+1 )
-      endWhile
-      writer.println( line )
-    endIf
-  endForEach
-  if (not skip_rewrite) writer.close
+          dollar = line.locate( '$', dollar.value+1 )
+        endWhile
+        writer.println( line )
+      endForEach
 
-endRoutine
+      writer.close
 
-routine parse_filepath( parser:JSONParser )->String
-  if (parser.next_is('"')) return parser.parse_string
+    method parse_filepath( parser:JSONParser )->String
+      if (parser.next_is('"')) return parser.parse_string
 
-  local buffer = StringBuilder()
-  while (parser.has_another and not " \n()".contains(parser.peek)) buffer.print( parser.read )
+      local buffer = String()
+      while (parser.has_another and not " \n()".contains(parser.peek)) buffer.print( parser.read )
 
-  if (buffer.count == 0) buffer.print( parser.read )
+      if (buffer.count == 0) buffer.print( parser.read )
 
-  return buffer->String
-endRoutine
-
-routine update_old_buildfiles( buildfiles:Buildfiles )
-  local all_content = ""
-  all_content += File.load_as_string( forEach in buildfiles ) + "\n"
-  contingent
-    necessary (all_content.contains("find_method"))
-    necessary (all_content.contains(".methods"))
-    necessary (all_content.contains(".call( Global,"))
-
-    println "="*80
-    println @|ATTENTION
-             |
-             |Rogo buildfiles have been detected that use an outdated mechanism for calling
-             |routines via introspection. Rogo is rewriting those files to fix them. Backups
-             |will be stored in .rogo/OldBuildfiles. No further action is required.
-             |
-
-    local backup_folder = ".rogo/OldBuildfiles"
-    require File.create_folder( backup_folder )
-
-    forEach (filepath in buildfiles)
-      local content = File.load_as_string( filepath )
-      local updated_content = update_old_buildfile( content )
-      if (updated_content is not content)
-        println "Rewriting " + filepath
-        local backup_filepath = "$/$" (backup_folder,File.filename(filepath))
-        if (File.exists(backup_filepath))
-          local n = 2
-          while (File.exists("$/$-$"(backup_folder,n,File.filename(filepath)))) ++n
-          backup_filepath = "$/$-$" (backup_folder,n,File.filename(filepath))
-        endIf
-        println "  Saving original to $" (backup_filepath)
-        File.save( backup_filepath, content )
-        File.save( filepath, updated_content )
-      endIf
-    endForEach
-
-    println "="*80
-  endContingent
-endRoutine
-
-routine update_old_buildfile( content:String )->String
-  local is_modified = false
-  use builder=StringBuilder.pool
-    forEach (line in LineReader(content))
-      if (line.ends_with("require m"))
-        is_modified = true
-        line = line.before_first("require") + @|require m || "no such routine rogo_$()" (rogo_command)
-      endIf
-      if (line.contains("find_method"))
-        is_modified = true
-        line .= replacing( "find_method", "find_global_method" )
-      endIf
-      if (line.contains(".methods"))
-        is_modified = true
-        line .= replacing( ".methods", ".global_methods" )
-      endIf
-      if (line.contains(".call( Global,"))
-        is_modified = true
-        line .= replacing( ".call( Global,", "(" )
-      endIf
-      builder.println( line )
-    endForEach
-    if (is_modified) return builder->String
-  endUse
-  return content
-endRoutine
-}#
+      return buffer
 
 endClass
 
 class Buildfiles : String[]
+  PROPERTIES
+    pwd = File(".").abs/"" : String
+
   METHODS
     method add( file:File )
       file = file.resolved.abs
+      if (file.filepath.begins_with(pwd)) file = File(file.filepath.unleft(pwd.count))
       if (not file.exists) return
       if (file.is_folder) return
       if (not this.contains(file.filepath)) prior.add( file.filepath )

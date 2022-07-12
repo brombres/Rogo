@@ -3,7 +3,6 @@ class CreateBuildfile
     method init( args:String[] )
       CreateGitIgnore()
 
-#{
       local bitmap_option = args.contains( "--bitmap" )
       local project_option = args.find( $.begins_with("--project") )
       local project_name : String
@@ -17,15 +16,14 @@ class CreateBuildfile
         project_name = project_name.replacing( " ", "" )
         print " and Source/$.rogue" (project_name)
         if (bitmap_option) print " with Bitmap library support"
-        println
       else
         print " with default Rogo framework"
         if (bitmap_option) print " and Bitmap library support"
-        println
       endIf
+      println
       args.clear
 
-      local builder = StringBuilder()
+      local builder = String()
       builder.println ...
         @|# To run this build file, install Rogue from github.com/AbePralle/Rogue then cd
          |# to this folder and type "rogo" at the command line.
@@ -33,7 +31,7 @@ class CreateBuildfile
 
       if (bitmap_option)
         builder.println ...
-          @|#$ LINK                 = true
+          @|#$ LINK_LIBS            = true
            |   # Link the following in when compiling this Build.rogue
            |
            |#$ LIBRARIES(macOS)     = libpng libjpeg zlib
@@ -48,14 +46,14 @@ class CreateBuildfile
                          |  # You can create a Local.settings file with overrides for these values, e.g.:
                          |  # LAUNCHER_FOLDER = "~/bin"
                          |  PROPERTIES
-        builder.println ''    PROJECT           = "$"'' (project_name)
-        builder.println ''    LAUNCHER_NAME     = PROJECT.to_lowercase : String''
+        builder.println ''    PROJECT          = "$"'' (project_name)
+        builder.println ''    LAUNCHER_NAME    = PROJECT.to_lowercase : String''
         builder.println
-        builder.println ''    RELEASE_MODE      = true  # default; 'rogo debug' temporarily sets to false and rebuilds''
-        builder.println ''    LAUNCHER_FOLDER   = "/usr/local/bin"''
-        builder.println ''    ROGUEC_FLAGS      = ""''
-        builder.println ''    CPP_FLAGS_UNIX    = ""''
-        builder.println ''    CPP_FLAGS_WINDOWS = ""''
+        builder.println ''    RELEASE_MODE     = true  # default; 'rogo debug' temporarily sets to false and rebuilds''
+        builder.println ''    LAUNCHER_FOLDER  = "/usr/local/bin"''
+        builder.println ''    ROGUEC_FLAGS     = ""''
+        builder.println ''    CC_FLAGS_UNIX    = ""''
+        builder.println ''    CC_FLAGS_WINDOWS = ""''
 
         builder.println ...
           @|endAugment
@@ -85,11 +83,11 @@ class CreateBuildfile
            |endRoutine
            |
            |routine rogo_build
-           |  # Recompiles Rogue -> C++ -> Exe if needed. 'rogo rebuild' forces a build.
+           |  # Recompiles Rogue -> C -> Exe if needed. 'rogo rebuild' forces a build.
            |  local source_files = Files( "Source", "**/*.rogue" )
            |  if (source_files.any_newer_than(exe_filepath))
-           |    local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
-           |    if (source_files.any_newer_than(cpp_filepath))
+           |    local c_filepath = "Build/$-$.c" (Build.PROJECT,System.os)
+           |    if (source_files.any_newer_than(c_filepath))
            |      compile_rogue
            |    endIf
            |    compile_cpp
@@ -111,39 +109,39 @@ class CreateBuildfile
            |
            |routine compile_rogue
            |  local src_filepath = "Source/$.rogue" (Build.PROJECT)
-           |  local cpp_filepath = "Build/$-$.cpp" (Build.PROJECT,System.os)
+           |  local c_filepath = "Build/$-$.c" (Build.PROJECT,System.os)
            |  local flags = Build.ROGUEC_FLAGS
            |  if (flags != "") flags += " "
            |  flags += which{ Build.RELEASE_MODE:"--release" || "--debug" }
-           |  execute "roguec $ $ --main --output=$ --target=Console,C++,$"...
-           |          (File.esc(src_filepath),flags,File.esc(cpp_filepath),System.os)
+           |  execute "roguec $ $ --main --output=$ --target=Console,C,$"...
+           |          (File.esc(src_filepath),flags,File.esc(c_filepath),System.os)
            |endRoutine
            |
            |routine compile_cpp
-           |  local cpp_filepath = File.esc( "Build/$-$.cpp" (Build.PROJECT,System.os) )
+           |  local c_filepath = File.esc( "Build/$-$.c" (Build.PROJECT,System.os) )
            |  local exe_filepath = File.esc( exe_filepath )
            |  if (System.is_windows)
            |    local libs = ""
-           |    local flags = Build.CPP_FLAGS_WINDOWS
+           |    local flags = Build.CC_FLAGS_WINDOWS
            |    if (flags != "") flags += " "
            |    flags += which{ Build.RELEASE_MODE:"/Ob2ity /GF /Gy" || "/Od" }
            |    local obj_filepath = File.esc( "Build/$-Windows.obj"(Build.PROJECT) )
-           |    local cc = "cl $ /EHsc /nologo $ /Fo$ /Fe$ $" (flags,cpp_filepath,obj_filepath,exe_filepath,libs)
+           |    local cc = "cl $ /EHsc /nologo $ /Fo$ /Fe$ $" (flags,c_filepath,obj_filepath,exe_filepath,libs)
            |    #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
            |    execute cc
            |  else
 
-      if (bitmap_option)
-        builder.println @|    local libs = which{ System.is_linux:" $LIBRARY_FLAGS(libpng-dev,libjpeg-dev)" || " $LIBRARY_FLAGS(libpng,libjpeg,zlib)" }
-      else
-        builder.println @|    local libs = ""
-      endIf
-      builder.println ...
-          @|    local flags = Build.CPP_FLAGS_UNIX
+        if (bitmap_option)
+          builder.println @|    local libs = which{ System.is_linux:" $LIBRARY_FLAGS(libpng-dev,libjpeg-dev)" || " $LIBRARY_FLAGS(libpng,libjpeg,zlib)" }
+        else
+          builder.println @|    local libs = ""
+        endIf
+        builder.println ...
+          @|    local flags = Build.CC_FLAGS_UNIX
            |    if (flags != "") flags += " "
            |    flags += which{ Build.RELEASE_MODE:"-O3" || "-O0" }
-           |    local cc = "c++ $ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof $ -o $$"...
-           |      (flags,File.esc(cpp_filepath),File.esc(exe_filepath),libs)
+           |    local cc = "cc $ -Wall $ -o $$"...
+           |      (flags,File.esc(c_filepath),File.esc(exe_filepath),libs)
            |    execute cc
            |  endIf
            |endRoutine
@@ -231,7 +229,8 @@ class CreateBuildfile
         @|
          |routine execute( commands:String, error_message=null:String, &suppress_error )->Logical
          |  forEach (cmd in LineReader(commands))
-         |    print( "> " ).println( cmd )
+         |    print( "> " )
+         |    println( cmd )
          |    if (0 != System.run(cmd))
          |      if (suppress_error)
          |        return false
@@ -267,19 +266,17 @@ class CreateBuildfile
          |
          |#   ROGUEC       = roguec       # Path to roguec to compile this file with
          |#   ROGUEC_ARGS  = --whatever   # Additional options to pass to RogueC
-         |#   CPP          = g++ -Wall -std=gnu++11 -fno-strict-aliasing
-         |#                  -Wno-invalid-offsetof   # C++ compiler path and/or invocation
-         |#   CPP_ARGS     = -a -b -c          # Additional C++ args
-         |#   LINK         = true              # Links following LIBRARIES with this Build
-         |#                                    # file (otherwise just installs them)
-         |#   LINK         = -lalpha -lbeta    # Links following LIBRARIES and includes
-         |#                                    # these additional flags
-         |#   LINK         = false             # Linking turned off for following
-         |#                                    # LIBRARIES - info can still be obtained
-         |#                                    # from $LIBRARY_FLAGS()
+         |#   CC           = gcc -Wall
+         |#   CC_ARGS      = -a -b -c          # Additional C args
+         |#   LINK         = -lalpha -lbeta    # Link this build file with these options
          |#   LINK(macOS)  = ...               # Options applying only to
          |#                                    # System.os=="macOS" (use with any OS and
          |#                                    # any comment directive)
+         |#   LINK_LIBS    = true              # Links following LIBRARIES with this Build
+         |#                                    # file (otherwise just installs them)
+         |#   LINK_LIBS    = false             # Linking turned off for following
+         |#                                    # LIBRARIES - info can still be obtained
+         |#                                    # from $LIBRARY_FLAGS()
          |#   LIBRARIES    = libalpha
          |#   LIBRARIES    = libbeta(library-name)
          |#   LIBRARIES    = libfreetype6-dev(freetype2)
@@ -318,9 +315,9 @@ class CreateBuildfile
          |
          |class Build [singleton]
          |  PROPERTIES
-         |    rogo_syntax         = StringTable<<String>>()
-         |    rogo_descriptions   = StringTable<<String>>()
-         |    rogo_prefix         = ?:{ $moduleName.count:$moduleName "::" || "" } + "rogo_" : String
+         |    rogo_syntax         = [String:String]
+         |    rogo_descriptions   = [String:String]
+         |    rogo_prefix         = "rogo_"
          |    rogo_command        = "default"
          |    rogo_args           = @[]
          |    rogo_error          : Error
@@ -337,7 +334,7 @@ class CreateBuildfile
          |
          |    method dispatch_command
          |      local m = find_command( rogo_command )
-         |      require m || "no such routine rogo_$()" (rogo_command)
+         |      if (not m) throw Error( "No such routine rogo_$()" (rogo_command) )
          |
          |      local args = @[]
          |      forEach (arg in rogo_args)
@@ -348,7 +345,7 @@ class CreateBuildfile
          |          others:       args.add( arg )
          |        endWhich
          |      endForEach
-         |      if (m.parameter_count == 1 and args.count > 1) args = @[ args ] # Wrap args in a ValueList.
+         |      if (m.parameter_types.count == 1 and args.count > 1) args = @[ args ] # Wrap args in a ValueList.
          |      m( args )
          |
          |    method find_command( name:String )->MethodInfo
@@ -453,7 +450,8 @@ class CreateBuildfile
          |      local max_w = Console.width - 2
          |      println "DESCRIPTION"
          |      forEach (line in LineReader(description.word_wrapped(max_w)))
-         |        print( "  " ).println( line )
+         |        print( "  " )
+         |        println( line )
          |      endForEach
          |      println
          |      success = true
@@ -515,7 +513,7 @@ class CreateBuildfile
          |    local m = <<Global>>.find_global_method( Build.rogo_prefix + m_name )
          |    if (not m) return null
          |    local line = "rogo $" (m_name.replacing('_',' '))
-         |    line += " <$>" (m.parameter_name(forEach in 0..<m.parameter_count))
+         |    line += " <$>" (m.parameter_name(forEach in 0..<m.parameter_types.count))
          |    return line
          |  endIf
          |endRoutine
@@ -529,9 +527,11 @@ class CreateBuildfile
          |  endIf
          |endRoutine
 
-      File.save( "Build.rogue", builder->String )
-      buildfiles.add( "Build.rogue" )
+      local buildfile = Rogo.project_folder/"Build.rogue"
+      buildfile.save( builder )
+      Rogo.buildfiles.add( buildfile )
 
+      #{
       if (project_name)
         # Create Source/ProjectName.rogue
         builder.clear
