@@ -117,6 +117,7 @@ global cache          : Value
       if (not buildfiles.count)
         if (should_create_buildfile)
           CreateBuildfile( resolved_args )
+          resolved_args.clear
         else
           local w = Console.width.or_smaller( 80 )
           Global.error.println "=" * w
@@ -237,10 +238,7 @@ global cache          : Value
           System.exit 1
         endIf
 
-        #{
         cmd = "$ $ $.c" (config//cc,config//cc_args,base_name)
-
-        local is_windows = (System.os == "Windows")
 
         forEach (library in config//libraries)
           install_library( library )
@@ -249,100 +247,95 @@ global cache          : Value
           endIf
         endForEach
 
-        cmd += " $$" (?:{is_windows:"/Fe"||"-o "},exe)
+        cmd += " $$" (which{System.is_windows:"/Fe"||"-o "},exe)
         local link_args = config//link
         if (link_args != "") cmd += " " + link_args
 
         println cmd
         if (0 != System.run(cmd)) System.exit( 1 )
-        File.delete( File.filename(exe).before_last(".exe") + ".obj" )
-        }#
+        File( File(exe).filename.before_last(".exe") + ".obj" ).delete
       endIf
 
-#{
-System.exit( System.run(''$ $'' (exe,cmd_line_args.map<<String>>( (arg)=>prep_arg(arg) ).join(" "))) )
-}#
+      local exit_code = System.run( ''$ $'' (exe,resolved_args.map<<String>>( (arg)=>Rogo.prep_arg(arg) ).join(" ")) )
+      System.exit( exit_code )
 
-#{
-routine prep_arg( arg:String )->String
-  # Quotes and escapes string if necessary
-  if (not (arg.contains(' ') or arg.contains('"') or arg.contains('\\'))) return arg
-  local quoted = StringBuilder()
-  quoted.print( '"' )
-  forEach (ch in arg)
-    which (ch)
-      case '"':  quoted.print( "\\\"" )
-      case '\\': quoted.print( "\\\\" )
-      others:    quoted.print( ch )
-    endWhich
-  endForEach
-  quoted.print( '"' )
-  return quoted
-endRoutine
-}#
+    method prep_arg( arg:String )->String
+      # Quotes and escapes string if necessary
+      if (not (arg.contains(' ') or arg.contains('"') or arg.contains('\\'))) return arg
+      local quoted = String()
+      quoted.print( '"' )
+      forEach (ch in arg)
+        which (ch)
+          case '"':  quoted.print( "\\\"" )
+          case '\\': quoted.print( "\\\\" )
+          others:    quoted.print( ch )
+        endWhich
+      endForEach
+      quoted.print( '"' )
+      return quoted
 
-  method require_command_line
-    if (System.env["IDE"])
-      throw Error( "$:$: error:Run 'make $' from the command line to install necessary libraries."...
-      ($sourceFilepath,$sourceLine,which{System.env["TARGET"]||""}.to_lowercase) )
-    endIf
+    method require_command_line
+      if (System.env["IDE"])
+        throw Error( "$:$: error:Run 'make $' from the command line to install necessary libraries."...
+        ($sourceFilepath,$sourceLine,which{System.env["TARGET"]||""}.to_lowercase) )
+      endIf
 
-  method save_cache
-    is_cache_modified = false
-    cache_file.save( cache.to_json(&formatted) )
+    method save_cache
+      is_cache_modified = false
+      cache_file.save( cache.to_json(&formatted) )
 
-  method configure_os
-    if (System.is_macos)     configure_macos
-    elseIf (System.is_linux) configure_linux
+    method configure_os
+      if (System.is_macos)     configure_macos
+      elseIf (System.is_linux) configure_linux
 
-  method configure_macos
-    if (0 != System.run("which brew > /dev/null 2>&1"))
-      require_command_line
-      if (Console.input( "\nHomebrew must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
-        local cmd = @|/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        println cmd
-        if (0 != System.run(cmd))
-          throw Error( "Failed to install Homebrew." )
+    method configure_macos
+      if (0 != System.run("which brew > /dev/null 2>&1"))
+        require_command_line
+        if (Console.input( "\nHomebrew must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
+          local cmd = @|/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          println cmd
+          if (0 != System.run(cmd))
+            throw Error( "Failed to install Homebrew." )
+          endIf
+        else
+          throw Error( "Missing required dependency 'brew' (Homebrew)." )
         endIf
-      else
-        throw Error( "Missing required dependency 'brew' (Homebrew)." )
       endIf
-    endIf
 
-    if (0 != System.run("which pkg-config > /dev/null 2>&1"))
-      require_command_line
-      if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
-        local cmd = @|brew install pkg-config
-        println cmd
-        if (0 != System.run(cmd))
-          throw Error( "Failed to install pkg-config." )
+      if (0 != System.run("which pkg-config > /dev/null 2>&1"))
+        require_command_line
+        if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
+          local cmd = @|brew install pkg-config
+          println cmd
+          if (0 != System.run(cmd))
+            throw Error( "Failed to install pkg-config." )
+          endIf
+        else
+          throw Error( "Missing required dependency 'pkg-config'." )
         endIf
-      else
-        throw Error( "Missing required dependency 'pkg-config'." )
       endIf
-    endIf
 
-  method configure_linux
-    if (0 != System.run("which apt-get > /dev/null 2>&1"))
-      if (0 == System.run("which yum > /dev/null 2>&1"))
-        package_manager = "yum"
-        package_manager_install = "sudo yum install"
-        package_manager_list    = "rpm -ql"
-      endIf
-    endIf
-
-    if (0 != System.run("which pkg-config > /dev/null 2>&1"))
-      require_command_line
-      if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
-        local cmd = package_manager_install + " pkg-config"
-        println cmd
-        if (0 != System.run(cmd))
-          throw Error( "Failed to install pkg-config." )
+    method configure_linux
+      if (0 != System.run("which apt-get > /dev/null 2>&1"))
+        if (0 == System.run("which yum > /dev/null 2>&1"))
+          package_manager = "yum"
+          package_manager_install = "sudo yum install"
+          package_manager_list    = "rpm -ql"
         endIf
-      else
-        throw Error( "Missing required dependency 'pkg-config'." )
       endIf
-    endIf
+
+      if (0 != System.run("which pkg-config > /dev/null 2>&1"))
+        require_command_line
+        if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
+          local cmd = package_manager_install + " pkg-config"
+          println cmd
+          if (0 != System.run(cmd))
+            throw Error( "Failed to install pkg-config." )
+          endIf
+        else
+          throw Error( "Missing required dependency 'pkg-config'." )
+        endIf
+      endIf
 
     method install_library( library:Value )
       local lib = cache//library_flags[ library//name ]

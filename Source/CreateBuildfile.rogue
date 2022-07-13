@@ -180,7 +180,7 @@ class CreateBuildfile
            |      local sudo = ""
            |      loop
            |        try
-           |          if (not File.exists(launcher_folder)) execute( "$mkdir $"(sudo,launcher_folder) )
+           |          if (not File(launcher_folder).exists) execute( "$mkdir $"(sudo,launcher_folder) )
            |          File.save( "$.launcher"(Build.LAUNCHER_NAME), ''#!/bin/sh\nexec "$" "$@"\n''(exe_filepath,'$') )
            |          execute( "$mv $.launcher $"(sudo,Build.LAUNCHER_NAME,launcher_filepath) )
            |          execute( "$chmod a+x $"(sudo,launcher_filepath) )
@@ -207,7 +207,7 @@ class CreateBuildfile
            |endRoutine
            |
            |routine verbose_delete( filepath:String )
-           |  if (File.exists(filepath))
+           |  if (File(filepath).exists)
            |    println "> Delete " + filepath
            |    if (not File.delete(filepath))
            |      println "*** Failed to delete - retrying with sudo"
@@ -301,9 +301,9 @@ class CreateBuildfile
          |  Build.rogo_descriptions[ command ] = text
          |endRoutine
          |
-         |routine help( command:String, description=null:String, syntax=null:String )
-         |  if (description) Global.description( command, description )
-         |  if (syntax)      Global.syntax( command, syntax )
+         |routine help( command:String, description_text=null:String, syntax_text=null:String )
+         |  if (description_text) description( command, description_text )
+         |  if (syntax_text)      syntax( command, syntax_text )
          |endRoutine
          |
          |try
@@ -341,15 +341,14 @@ class CreateBuildfile
          |        which (arg)
          |          case "true":  args.add( true )
          |          case "false": args.add( false )
-         |          case "null":  args.add( NullValue )
+         |          case "null":  args.add( null )
          |          others:       args.add( arg )
          |        endWhich
          |      endForEach
-         |      if (m.parameter_types.count == 1 and args.count > 1) args = @[ args ] # Wrap args in a ValueList.
          |      m( args )
          |
          |    method find_command( name:String )->MethodInfo
-         |      return <<Global>>.find_global_method( rogo_prefix + name )
+         |      return <<Routine>>.find_global_method( rogo_prefix + name )
          |
          |    method on_error
          |      local w = Console.width.or_smaller( 80 )
@@ -408,7 +407,7 @@ class CreateBuildfile
          |    method read_defs( defs_filepath:String )
          |      # Attempt to read defs from Local.settings
          |      local overrides = String[]
-         |      if (File.exists(defs_filepath))
+         |      if (File(defs_filepath).exists)
          |        forEach (line in LineReader(File(defs_filepath)))
          |          if (line.contains("="))
          |            local name  = line.before_first('=').trimmed
@@ -419,7 +418,7 @@ class CreateBuildfile
          |            local p = <<Build>>.find_property( name )
          |            if (p)
          |              overrides.add( "$ = $" (name,value) )
-         |              <<Build>>.set_property( this, p, Value(value) )
+         |              p.set_value( this, value )
          |            endIf
          |          endIf
          |        endForEach
@@ -470,7 +469,7 @@ class CreateBuildfile
          |  println "USAGE"
          |  local lines = String[]
          |  local max_len = 0
-         |  forEach (m in <<Global>>.global_methods)
+         |  forEach (m in <<Routine>>.global_methods)
          |    if (m.name.begins_with(Build.rogo_prefix))
          |      lines.add( "  " + get_syntax(m.name.after_first(Build.rogo_prefix)) )
          |      max_len .= or_larger( lines.last.count )
@@ -481,7 +480,7 @@ class CreateBuildfile
          |  local max_w = Console.width
          |  lines.sort( (a,b)=>(a<b) )
          |  local line_iterator = lines.iterator
-         |  forEach (m in <<Global>>.global_methods)
+         |  forEach (m in <<Routine>>.global_methods)
          |    if (m.name.begins_with(Build.rogo_prefix))
          |      local line = line_iterator.read
          |      print line
@@ -510,10 +509,10 @@ class CreateBuildfile
          |  if (Build.rogo_syntax.contains(m_name))
          |    return "rogo " + Build.rogo_syntax[ m_name ]
          |  else
-         |    local m = <<Global>>.find_global_method( Build.rogo_prefix + m_name )
+         |    local m = <<Routine>>.find_global_method( Build.rogo_prefix + m_name )
          |    if (not m) return null
          |    local line = "rogo $" (m_name.replacing('_',' '))
-         |    line += " <$>" (m.parameter_name(forEach in 0..<m.parameter_types.count))
+         |    line += " <$>" ((forEach in m.parameters).name)
          |    return line
          |  endIf
          |endRoutine

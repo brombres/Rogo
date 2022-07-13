@@ -41,8 +41,8 @@ routine rogo_test
   local folder = File("Test")
   folder.delete
   folder.create_folder
-  #execute "cd $ && rogo2"(folder)
   execute "rogo2 --build=Test --create"
+  execute "cd Test && rogo2"
 endRoutine
 
 routine rogo_build
