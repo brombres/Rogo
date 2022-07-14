@@ -229,7 +229,9 @@ global cache          : Value
         if (not File(roguec).exists) roguec = "r2"  # use system default
         local roguec_args = config//roguec_args->String
         local cmd =  "$ --target=C++,Console,$" (roguec,System.os)
-        cmd += " " + (File(forEach in buildfiles).esc)
+        forEach (filepath in buildfiles)
+          cmd += " " + (rogo_folder/File(filepath).filename).esc
+        endForEach
         cmd += " --api --debug --main --output=$ $" (base_name,roguec_args)
         println cmd
 
@@ -238,7 +240,9 @@ global cache          : Value
           System.exit 1
         endIf
 
-        cmd = "$ $ $.c" (config//cc,config//cc_args,base_name)
+        cmd = config//cc->String
+        if (config//cc_args) cmd += " " + config//cc_args
+        cmd += " $.c"(base_name)
 
         forEach (library in config//libraries)
           install_library( library )
@@ -714,7 +718,8 @@ global cache          : Value
     method scan_and_rewrite( file:File, &write_autodoc )
       if (not file.exists) return
 
-      local writer = File("$/$"(rogo_folder,file.filename)).print_writer
+      local outfile = File("$/$"(rogo_folder,file.filename))
+      local writer = outfile.print_writer
 
       if (write_autodoc and found_description_routine)
         forEach (entry in syntax_info.entries)

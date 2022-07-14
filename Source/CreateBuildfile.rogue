@@ -68,7 +68,7 @@ class CreateBuildfile
            |
            |routine rogo_clean
            |  # Deletes the Build/ folder.
-           |  File.delete( "Build" )
+           |  File( "Build" ).delete
            |endRoutine
            |
            |routine exe_filepath->String
@@ -78,8 +78,9 @@ class CreateBuildfile
            |
            |routine launcher_folder->String
            |  local result = Build.LAUNCHER_FOLDER
-           |  result = File.expand_path( result )
-           |  return File.without_trailing_separator( result )
+           |  result = File(result).resolved.filepath
+           |  if (result.count > 1) result .= without_suffix('/')
+           |  return result
            |endRoutine
            |
            |routine rogo_build
@@ -109,24 +110,23 @@ class CreateBuildfile
            |
            |routine compile_rogue
            |  local src_filepath = "Source/$.rogue" (Build.PROJECT)
-           |  local c_filepath = "Build/$-$.c" (Build.PROJECT,System.os)
+           |  local c_filepath = "Build/$-$" (Build.PROJECT,System.os)
            |  local flags = Build.ROGUEC_FLAGS
-           |  if (flags != "") flags += " "
-           |  flags += which{ Build.RELEASE_MODE:"--release" || "--debug" }
-           |  execute "roguec $ $ --main --output=$ --target=Console,C,$"...
-           |          (File.esc(src_filepath),flags,File.esc(c_filepath),System.os)
+           |  if (not Build.RELEASE_MODE) flags = flags.with_suffix(' ') + "--debug"
+           |  execute "r2 $ $ --main --output=$ --target=Console,C,$"...
+           |          (File(src_filepath).esc,flags,File(c_filepath).esc,System.os)
            |endRoutine
            |
            |routine compile_cpp
-           |  local c_filepath = File.esc( "Build/$-$.c" (Build.PROJECT,System.os) )
-           |  local exe_filepath = File.esc( exe_filepath )
+           |  local c_filepath = File( "Build/$-$" (Build.PROJECT,System.os) ).esc
+           |  local exe_filepath = File( exe_filepath ).esc
            |  if (System.is_windows)
            |    local libs = ""
            |    local flags = Build.CC_FLAGS_WINDOWS
            |    if (flags != "") flags += " "
            |    flags += which{ Build.RELEASE_MODE:"/Ob2ity /GF /Gy" || "/Od" }
-           |    local obj_filepath = File.esc( "Build/$-Windows.obj"(Build.PROJECT) )
-           |    local cc = "cl $ /EHsc /nologo $ /Fo$ /Fe$ $" (flags,c_filepath,obj_filepath,exe_filepath,libs)
+           |    local obj_filepath = File( "Build/$-Windows.obj"(Build.PROJECT) ).esc
+           |    local cc = "cl $ /EHsc /nologo $.c /Fo$ /Fe$ $" (flags,c_filepath,obj_filepath,exe_filepath,libs)
            |    #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
            |    execute cc
            |  else
@@ -140,24 +140,24 @@ class CreateBuildfile
           @|    local flags = Build.CC_FLAGS_UNIX
            |    if (flags != "") flags += " "
            |    flags += which{ Build.RELEASE_MODE:"-O3" || "-O0" }
-           |    local cc = "cc $ -Wall $ -o $$"...
-           |      (flags,File.esc(c_filepath),File.esc(exe_filepath),libs)
+           |    local cc = "cc $ -Wall $.c -o $$"...
+           |      (flags,File(c_filepath).esc,File(exe_filepath).esc,libs)
            |    execute cc
            |  endIf
            |endRoutine
            |
            |routine rogo_run
            |  # Runs this project.
-           |  execute File.esc( exe_filepath )
+           |  execute File( exe_filepath ).esc
            |endRoutine
            |
            |routine rogo_install
            |  # Builds and installs the Exe to a system-appropriate location (see also 'rogo link').
            |  rogo_build
-           |  local exe_filepath = File.abs( exe_filepath )
+           |  local exe_filepath = File( exe_filepath ).abs.filepath
            |  if (System.is_windows)
-           |    local exe_folder = File.conventional_filepath( File.folder(exe_filepath) )
-           |    local path = System.environment//PATH
+           |    local exe_folder = File(exe_filepath).parent.conventional_filepath
+           |    local path = System.env//PATH
            |    if (not path.to_lowercase.contains(exe_folder.to_lowercase))
            |      println
            |      println ''Add the following to your system PATH then reopen this command prompt to be able''
@@ -172,7 +172,7 @@ class CreateBuildfile
            |      necessary (result.success)
            |      local launcher_filepath = result->String.trimmed
            |      necessary launcher_filepath
-           |      necessary File.load_as_string( launcher_filepath ).contains( exe_filepath )
+           |      necessary String( File(launcher_filepath) ).contains( exe_filepath )
            |
            |    unsatisfied
            |      local launcher_filepath = "$/$" (launcher_folder,Build.LAUNCHER_NAME)
@@ -181,7 +181,7 @@ class CreateBuildfile
            |      loop
            |        try
            |          if (not File(launcher_folder).exists) execute( "$mkdir $"(sudo,launcher_folder) )
-           |          File.save( "$.launcher"(Build.LAUNCHER_NAME), ''#!/bin/sh\nexec "$" "$@"\n''(exe_filepath,'$') )
+           |          File( "$.launcher"(Build.LAUNCHER_NAME) ).save( ''#!/bin/sh\nexec "$" "$@"\n''(exe_filepath,'$') )
            |          execute( "$mv $.launcher $"(sudo,Build.LAUNCHER_NAME,launcher_filepath) )
            |          execute( "$chmod a+x $"(sudo,launcher_filepath) )
            |          escapeLoop
@@ -209,9 +209,9 @@ class CreateBuildfile
            |routine verbose_delete( filepath:String )
            |  if (File(filepath).exists)
            |    println "> Delete " + filepath
-           |    if (not File.delete(filepath))
+           |    if (not File(filepath).delete)
            |      println "*** Failed to delete - retrying with sudo"
-           |      local cmd = ''sudo rm -rf $'' (File.shell_escaped(filepath))
+           |      local cmd = ''sudo rm -rf $'' (File(filepath).esc)
            |      execute cmd
            |    endIf
            |  endIf
@@ -385,7 +385,7 @@ class CreateBuildfile
          |          rogo_args.clear
          |
          |          while (parts.count)
-         |            local cmd = _join( parts )
+         |            local cmd = parts.join("_")
          |            if (find_command(cmd))
          |              rogo_command = cmd
          |              on_command_found
@@ -530,7 +530,6 @@ class CreateBuildfile
       buildfile.save( builder )
       Rogo.buildfiles.add( buildfile )
 
-      #{
       if (project_name)
         # Create Source/ProjectName.rogue
         builder.clear
@@ -589,9 +588,8 @@ class CreateBuildfile
            |               |    Show this help text.
            |endClass
 
-        File.create_folder( "Source" )
-        File.save( "Source/$.rogue"(project_name), builder->String )
+        File( "Source" ).create_folder
+        File( "Source/$.rogue"(project_name) ).save( builder->String )
       endIf
-      }#
 
 endClass
