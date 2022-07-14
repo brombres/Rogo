@@ -577,7 +577,7 @@ global cache          : Value
             else
               # end of autodoc commment
               if (builder.count)
-                local doc = builder->String
+                local doc = builder.cloned
                 local lines = doc.split('\n')
                 local curln : String
                 forEach (nextln in rewriter=lines.rewriter)
