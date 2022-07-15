@@ -7,6 +7,7 @@ $define AUTHOR "July 6, 2022 by Abe Pralle"
 
 $include CreateBuildfile
 $include CreateGitIgnore
+$include CreateProjectSource
 
 #$ ROGUEC       = roguec
 #$ ROGUEC_ARGS  = --whatever
@@ -721,15 +722,6 @@ global cache          : Value
       local outfile = File("$/$"(rogo_folder,file.filename))
       local writer = outfile.print_writer
 
-      if (write_autodoc and found_description_routine)
-        forEach (entry in syntax_info.entries)
-          writer.println ''syntax( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
-        endForEach
-        forEach (entry in description_info.entries)
-          writer.println ''description( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
-        endForEach
-      endIf
-
       forEach (line in LineReader(file))
         local dollar = line.locate( '$' )
         while (dollar.exists)
@@ -756,6 +748,22 @@ global cache          : Value
         endWhile
         writer.println( line )
       endForEach
+
+      if (write_autodoc and found_description_routine)
+        writer.println @|
+                        |augment Build
+                        |  METHODS
+                        |    method launch [insert]
+        writer.indent += 6
+        forEach (entry in syntax_info.entries)
+          writer.println ''syntax( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
+        endForEach
+        forEach (entry in description_info.entries)
+          writer.println ''description( "$", "$" )'' (entry.key,entry.value.to_escaped_ascii('"'))
+        endForEach
+        writer.indent -= 6
+        writer.println @|endAugment
+      endIf
 
       writer.close
 

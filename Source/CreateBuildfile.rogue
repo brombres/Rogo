@@ -3,7 +3,7 @@ class CreateBuildfile
     method init( args:String[] )
       CreateGitIgnore()
 
-      local bitmap_option = args.contains( "--bitmap" )
+      local bitmap_support = args.contains( "--bitmap" )
       local project_option = args.find( $.begins_with("--project") )
       local project_name : String
       if (project_option)
@@ -15,10 +15,10 @@ class CreateBuildfile
       if (project_name)
         project_name = project_name.replacing( " ", "" )
         print " and Source/$.rogue" (project_name)
-        if (bitmap_option) print " with Bitmap library support"
+        if (bitmap_support) print " with Bitmap library support"
       else
         print " with default Rogo framework"
-        if (bitmap_option) print " and Bitmap library support"
+        if (bitmap_support) print " and Bitmap library support"
       endIf
       println
       args.clear
@@ -30,7 +30,7 @@ class CreateBuildfile
          |# of supported commands.
          |
 
-      if (bitmap_option)
+      if (bitmap_support)
         builder.println ...
           @|#$ LINK_LIBS            = true
            |   # Link the following in when compiling this Build.rogue
@@ -85,8 +85,9 @@ class CreateBuildfile
            |endRoutine
            |
            |routine rogo_clean
-           |  # Deletes the Build/ folder.
+           |  # Deletes the Build/ and .rogo/ folders.
            |  File( "Build" ).delete
+           |  File( ".rogo" ).delete
            |endRoutine
            |
            |routine rogo_build
@@ -197,7 +198,7 @@ class CreateBuildfile
            |    execute cc
            |  else
 
-        if (bitmap_option)
+        if (bitmap_support)
           builder.println @|    local libs = which{ System.is_linux:" $LIBRARY_FLAGS(libpng-dev,libjpeg-dev)" || " $LIBRARY_FLAGS(libpng,libjpeg,zlib)" }
         else
           builder.println @|    local libs = ""
@@ -549,66 +550,6 @@ class CreateBuildfile
       buildfile.save( builder )
       Rogo.buildfiles.add( buildfile )
 
-      if (project_name)
-        # Create Source/ProjectName.rogue
-        builder.clear
-        builder.println "#" + "=" * 80
-        builder.println "# $.rogue" (project_name)
-        builder.println "# " + Date.today->String(&verbose)
-        builder.println "#" + "=" * 80
-        builder.println
-        builder.print   "$requireRogue "
-        builder.println ''"$"'' ($rogueVersion)
-        builder.println
-        builder.println "uses Utility/CommandLineParser"
-        if (bitmap_option)
-          builder.println "uses Bitmap"
-        endIf
-        builder.println
-
-        builder.println @|try
-        builder.println "  $( System.command_line_arguments )" (project_name)
-        builder.println @|catch (error:Error)
-                         |  Console.error.println error
-                         |  System.exit 1
-                         |endTry
-        builder.println
-        builder.println "class $" (project_name)
-        builder.println ...
-          @|  METHODS
-           |    method init( args:String[] )
-           |      local command = parse_args( args )
-           |
-           |      trace command
-           |      # has //options and possibly //args
-           |
-           |      if (command//options//help)
-           |        print_usage
-           |        System.exit 0
-           |      endIf
-           |
-           |    method parse_args( args:String[] )->Value
-           |      local command = CommandLineParser().
-           |      [
-           |        option( "--flag",     &alias="-f" )
-           |        option( "--help",     &aliases=["-h","-?"] )
-           |        option( "--setting=", &alias="-s" )
-           |      ].parse( args )
-           |      return command
-           |
-           |    method print_usage
-           |      println @|USAGE
-        builder.println ...
-           "               |  $ [OPTIONS]" (project_name.to_lowercase)
-        builder.println ...
-          @|               |
-           |               |OPTIONS
-           |               |  --help, -h, -?
-           |               |    Show this help text.
-           |endClass
-
-        File( "Source" ).create_folder
-        File( "Source/$.rogue"(project_name) ).save( builder->String )
-      endIf
+      CreateProjectSource( project_name, &=bitmap_support )
 
 endClass

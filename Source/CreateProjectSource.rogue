@@ -1,0 +1,64 @@
+class CreateProjectSource
+  METHODS
+    method init( project_name:String, &bitmap_support )
+      # Create Source/ProjectName.rogue
+      local builder = String()
+      builder.clear
+      builder.println "#" + "=" * 80
+      builder.println "# $.rogue" (project_name)
+      builder.println "# " + Date.today->String(&verbose)
+      builder.println "#" + "=" * 80
+      builder.println
+      builder.print   "$requireRogue "
+      builder.println ''"$"'' ($rogueVersion)
+      builder.println
+      builder.println "uses Utility/CommandLineParser"
+      if (bitmap_support)
+        builder.println "uses Bitmap"
+      endIf
+      builder.println
+
+      builder.println @|try
+      builder.println "  $( System.command_line_arguments )" (project_name)
+      builder.println @|catch (error:Error)
+                       |  Console.error.println error
+                       |  System.exit 1
+                       |endTry
+      builder.println
+      builder.println "class $" (project_name)
+      builder.println ...
+        @|  METHODS
+         |    method init( args:String[] )
+         |      local command = parse_args( args )
+         |
+         |      trace command
+         |      # has //options and possibly //args
+         |
+         |      if (command//options//help)
+         |        print_usage
+         |        System.exit 0
+         |      endIf
+         |
+         |    method parse_args( args:String[] )->Value
+         |      local command = CommandLineParser().
+         |      [
+         |        option( "--flag",     &alias="-f" )
+         |        option( "--help",     &aliases=["-h","-?"] )
+         |        option( "--setting=", &alias="-s" )
+         |      ].parse( args )
+         |      return command
+         |
+         |    method print_usage
+         |      println @|USAGE
+      builder.println ...
+         "               |  $ [OPTIONS]" (project_name.to_lowercase)
+      builder.println ...
+        @|               |
+         |               |OPTIONS
+         |               |  --help, -h, -?
+         |               |    Show this help text.
+         |endClass
+
+      File( "Source" ).create_folder
+      File( "Source/$.rogue"(project_name) ).save( builder->String )
+endClass
