@@ -4,6 +4,7 @@ class CreateBuildfile
       CreateGitIgnore()
 
       local bitmap_support = args.contains( "--bitmap" )
+      local github_support = args.contains( "--gh" )
       local project_option = args.find( $.begins_with("--project") )
       local project_name : String
       if (project_option)
@@ -173,6 +174,56 @@ class CreateBuildfile
            |  # Cleans the project and uninstalls the launcher from 'rogo install'.
            |  rogo_clean
            |  if (not System.is_windows) verbose_delete( "$/$"(launcher_folder,Build.LAUNCHER_NAME) )
+           |endRoutine
+           |
+           |routine rogo_update_version( version:String )
+           |  # Updates the version number and date in the project source and README.md.
+           |  if (version.count == 0) throw Error( "New version number expected, e.g. '1.0.2'." )
+           |
+       builder.println ''  block file = File( "Source/$.rogue" )''(project_name)
+
+       builder.println ...
+          @|    if (file.exists)
+           |      local og_content = String(file)
+           |      local content = og_content
+           |
+           |      content = content.replacing_pattern(
+           |      ''define VERSION "$"'',
+           |      ''define VERSION "$"''(version)
+           |      )
+           |
+           |      content = content.replacing_pattern(
+           |        ''define DATE "$"'',
+           |        ''define DATE "$"''(Date.today->String(&verbose))
+           |      )
+           |
+           |      if (content != og_content)
+           |        println "Updating version and date in $"(file)
+           |        file.save( content )
+           |      endIf
+           |    endIf
+           |  endBlock
+           |
+           |  block file = File( "README.md" )
+           |    if (file.exists)
+           |      local og_content = String(file)
+           |      local content = String( og_content.count+20 )
+           |      forEach (line in LineReader(og_content))
+           |        if (line.contains_pattern("Version|$(I)"))
+           |          content.println( "$| $" (line.before_last('|'),version) )
+           |        elseIf (line.contains_pattern("Date|"))
+           |          local today = Date.today->String(&verbose)
+           |          content.println( "$| $" (line.before_last('|'),today) )
+           |        else
+           |          content.println( line )
+           |        endIf
+           |      endForEach
+           |      if (content != og_content)
+           |        println "Updating version and date in $"(file)
+           |        file.save( content )
+           |      endIf
+           |    endIf
+           |  endBlock
            |endRoutine
            |
            |routine compile_rogue
@@ -551,5 +602,18 @@ class CreateBuildfile
       Rogo.buildfiles.add( buildfile )
 
       CreateProjectSource( project_name, &=bitmap_support )
+
+      println @|
+               |[OPTIONAL]
+               |Add a Markdown table with "Version" and "Date" rows to README.md to have those
+               |version and date values automatically updated during 'rogo commit x.y.z'.
+               |Example:
+               |
+               |About     | Current Release
+               |----------|-----------------------
+               |Version   | 1.0
+               |Date      | July 14, 2022
+               |Platforms | Windows, macOS, Linux
+               |
 
 endClass

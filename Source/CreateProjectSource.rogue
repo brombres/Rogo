@@ -1,6 +1,6 @@
 class CreateProjectSource
   METHODS
-    method init( project_name:String, &bitmap_support )
+    method init( project_name:String, &bitmap_support, &github_support )
       # Create Source/ProjectName.rogue
       local builder = String()
       builder.clear
@@ -8,6 +8,9 @@ class CreateProjectSource
       builder.println "# $.rogue" (project_name)
       builder.println "# " + Date.today->String(&verbose)
       builder.println "#" + "=" * 80
+      builder.println
+      builder.println ''$define VERSION "1.0"''
+      builder.println ''$define DATE    "$"'' ('$',Date.today->String(&verbose))
       builder.println
       builder.print   "$requireRogue "
       builder.println ''"$"'' ($rogueVersion)
@@ -49,6 +52,12 @@ class CreateProjectSource
          |      return command
          |
          |    method print_usage
+      builder.print   ''      println "'' + project_name
+      builder.println '' v$"(VERSION)''
+      builder.println ''      println "$"(DATE)''
+      builder.println ''      println''
+      builder.println ...
+        @|
          |      println @|USAGE
       builder.println ...
          "               |  $ [OPTIONS]" (project_name.to_lowercase)
