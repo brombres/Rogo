@@ -48,12 +48,12 @@ class CreateBuildfile
       if (project_name)
         builder.println @|augment Build
                          |  # You can create a Local.settings file with overrides for these values, e.g.:
-                         |  # RELEASE_MODE = true
+                         |  # BUILD_MODE = release
                          |  PROPERTIES
         builder.println ''    PROJECT          = "$"'' (project_name)
         builder.println ''    LAUNCHER_NAME    = PROJECT.to_lowercase : String''
         builder.println
-        builder.println ''    RELEASE_MODE     = false''
+        builder.println ''    BUILD_MODE       = "debug"''
         builder.println ''    LAUNCHER_FOLDER  = "/usr/local/bin"''
         builder.println ''    ROGUEC_FLAGS     = ""''
         builder.println ''    CC_FLAGS_UNIX    = ""''
@@ -107,13 +107,13 @@ class CreateBuildfile
            |
            |routine rogo_build_debug
            |  # Force-rebuilds in debug mode.
-           |  Build.RELEASE_MODE = false
+           |  Build.BUILD_MODE = "debug"
            |  rogo_rebuild
            |endRoutine
            |
            |routine rogo_build_release
            |  # Force-rebuilds in release mode.
-           |  Build.RELEASE_MODE = true
+           |  Build.BUILD_MODE = "release"
            |  rogo_rebuild
            |endRoutine
            |
@@ -196,7 +196,7 @@ class CreateBuildfile
            |
            |      content = content.replacing_pattern(
            |        ''define DATE "$"'',
-           |        ''define DATE "$"''(Date.today->String(&verbose))
+           |        ''define DATE    "$"''(Date.today->String(&verbose))
            |      )
            |
            |      if (content != og_content)
@@ -228,11 +228,84 @@ class CreateBuildfile
            |  endBlock
            |endRoutine
            |
-           |routine compile_rogue
+           |routine rogo_commit( new_version:String )
+           |  # Updates source and README version number and git-commits with a version number message.
+           |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo commit'." )
+           |  rogo_update_version( new_version )
+           |
+           |  if (not System.find_program("git")) throw Error( "Git must be installed." )
+           |  if (project_has_uncommitted_changes)
+           |    execute ''git commit -am "[v$]"'' (new_version)
+           |  else
+           |    println "No changes to commit."
+           |  endIf
+           |endRoutine
+           |
+           |routine project_has_uncommitted_changes->Logical
+           |  local result = Process.run( "git status --porcelain", &env )
+           |  if (not result.success)
+           |    Console.error.println result->String
+           |    System.exit 1
+           |  endIf
+           |
+           |  local lines = result->String.trimmed.split('\n').[discard($.begins_with("??"))]
+           |  lines.discard( $ == "" )
+           |  return not lines.is_empty
+           |endRoutine
+           |
+
+       if (github_support)
+         builder.println ...
+          @|routine rogo_publish( new_version:String )
+           |  # Updates source and README version number, commits, and publishes a release to GitHub.
+           |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo publish'." )
+           |  if (not System.find_program("gh")) throw Error( "The GitHub command line tool 'gh' must be installed." )
+           |  rogo_commit( new_version )
+           |
+           |  # These can be hard-coded to suit your project
+           |  local cur_branch : String
+           |  local main_branch : String
+           |
+           |  if (not cur_branch)
+           |    local result = Process.run("git branch --show-current",&env)
+           |    if (result.success) cur_branch = result->String.trimmed
+           |    else                throw Error( "Unable to detect current git branch." )
+           |  endIf
+           |
+           |  if (not main_branch)
+           |    local result = Process.run("git branch --list",&env)
+           |    if (result.success)
+           |      local branches = result->String.replacing('*',' ').split('\n').[modify($.trimmed)]
+           |      forEach (branch in ["main","master"])
+           |        if (branches.contains(branch)) main_branch=branch; escapeForEach
+           |      endForEach
+           |    endIf
+           |    if (not main_branch) throw Error( "Unable to detect name of main (release) branch." )
+           |  endIf
+           |
+           |  if (cur_branch != main_branch)
+           |    if (not Console.input("$ will be merged into $. Continue? ").to_lowercase.begins_with('y')) return
+           |    execute "git push origin $"(cur_branch)
+           |    execute "git checkout $"(main_branch)
+           |    execute "git pull"
+           |    execute "git merge $"(cur_branch)
+           |    execute "git push origin $"(main_branch)
+           |    execute "git checkout $"(cur_branch)
+           |  endIf
+           |
+           |  if (not Console.input("Continue publishing release to GitHub? ").to_lowercase.begins_with('y')) return
+           |
+           |  execute "gh release create v"+new_version
+           |endRoutine
+           |
+       endIf
+
+       builder.println ...
+          @|routine compile_rogue
            |  local src_filepath = "Source/$.rogue" (Build.PROJECT)
            |  local c_filepath = "Build/$-$" (Build.PROJECT,System.os)
            |  local flags = Build.ROGUEC_FLAGS
-           |  if (not Build.RELEASE_MODE) flags = flags.with_suffix(' ') + "--debug"
+           |  if (Build.BUILD_MODE == "debug") flags = flags.with_suffix(' ') + "--debug"
            |  execute "r2 $ $ --main --output=$ --target=Console,C,$"...
            |          (File(src_filepath).esc,flags,File(c_filepath).esc,System.os)
            |endRoutine
@@ -244,7 +317,7 @@ class CreateBuildfile
            |    local libs = ""
            |    local flags = Build.CC_FLAGS_WINDOWS
            |    if (flags != "") flags += " "
-           |    flags += which{ Build.RELEASE_MODE:"/Ob2ity /GF /Gy" || "/Od" }
+           |    flags += which{ Build.BUILD_MODE=="release":"/Ob2ity /GF /Gy" || "/Od" }
            |    local obj_filepath = File( "Build/$-Windows.obj"(Build.PROJECT) ).esc
            |    local cc = "cl $ /EHsc /nologo $.c /Fo$ /Fe$ $" (flags,c_filepath,obj_filepath,exe_filepath,libs)
            |    #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
@@ -259,7 +332,7 @@ class CreateBuildfile
         builder.println ...
           @|    local flags = Build.CC_FLAGS_UNIX
            |    if (flags != "") flags += " "
-           |    flags += which{ Build.RELEASE_MODE:"-O3" || "-O0" }
+           |    flags += which{ Build.BUILD_MODE=="release":"-O3" || "-O0" }
            |    local cc = "cc $ -Wall $.c -o $$"...
            |      (flags,File(c_filepath).esc,exe_file.esc,libs)
            |    execute cc
@@ -605,17 +678,19 @@ class CreateBuildfile
 
       CreateProjectSource( project_name, &=bitmap_support )
 
-      println @|
-               |[OPTIONAL]
-               |Add a Markdown table with "Version" and "Date" rows to README.md to have those
-               |version and date values automatically updated during 'rogo commit x.y.z'.
-               |Example:
-               |
-               |About     | Current Release
-               |----------|-----------------------
-               |Version   | 1.0
-               |Date      | July 14, 2022
-               |Platforms | Windows, macOS, Linux
-               |
+      println ...
+        @|
+         |[OPTIONAL]
+         |Add a Markdown table with "Version" and "Date" rows to README.md to have those
+         |version and date values automatically updated during 'rogo commit x.y.z'.
+         |Example:
+         |
+         |About     | Current Release
+         |----------|-----------------------
+         |Version   | 1.0
+      println "Date      | $"(Date.today->String(&verbose))
+      println ...
+        @|Platforms | Windows, macOS, Linux
+         |
 
 endClass

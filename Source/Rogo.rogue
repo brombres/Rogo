@@ -3,7 +3,7 @@
 #================================================================================
 
 $define VERSION "Rogo v1.2.4"
-$define AUTHOR "July 6, 2022 by Abe Pralle"
+$define DATE "July 6, 2022"
 
 $include CreateBuildfile
 $include CreateGitIgnore
@@ -49,16 +49,12 @@ class Rogo [singleton]
 
     found_description_routine : Logical
 
-#{
-global cache          : Value
-
-}#
   METHODS
     method init
       local args = System.command_line_arguments
       if (args.count == 1 and args.first == "--version")
         println VERSION
-        println AUTHOR
+        println "$ by Abe Pralle"(DATE)
         System.exit
       endIf
 
