@@ -30,6 +30,8 @@ class CreateBuildfile
          |# to this folder and type "rogo" at the command line, or "rogo help" for a list
          |# of supported commands.
          |
+      builder.println ''$requireRogue "$"''('$',$rogueVersion)
+      builder.println
 
       if (bitmap_support)
         builder.println ...
