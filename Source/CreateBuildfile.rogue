@@ -3,9 +3,9 @@ class CreateBuildfile
     method init( args:String[] )
       CreateGitIgnore()
 
-      local bitmap_support = args.contains( "--bitmap" )
-      local github_support = args.contains( "--gh" )
       local project_option = args.find( $.begins_with("--project") )
+      local bitmap_support = args.contains( "--bitmap" )
+      local github_support = true
       local project_name : String
       if (project_option)
         project_name = project_option.value.after_first('=')

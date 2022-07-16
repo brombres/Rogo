@@ -125,10 +125,6 @@ class Rogo [singleton]
                    |    Links Build.rogue and the starter project (if --project is specified) with
                    |    libpng and libjpeg libraries.
                    |
-                   |  --gh
-                   |    Created with GitHub release support via GitHub's command line tool 'gh':
-                   |    - rogo publish 1.1 # starts interactive release process using version 1.1
-                   |
                    |If no options are specified then only Build.rogue is created.
           Global.error.println( mesg.word_wrapped(w) )
           Global.error.println "=" * w
