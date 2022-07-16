@@ -2,8 +2,8 @@
 # Rogo.rogue
 #================================================================================
 
-$define VERSION "Rogo v1.2.4"
-$define DATE "July 6, 2022"
+$define VERSION "2.0"
+$define DATE    "July 15, 2022"
 
 $include CreateBuildfile
 $include CreateGitIgnore
