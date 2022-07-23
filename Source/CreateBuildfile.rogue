@@ -676,21 +676,23 @@ class CreateBuildfile
       buildfile.save( builder )
       Rogo.buildfiles.add( buildfile )
 
-      CreateProjectSource( project_name, &=bitmap_support )
+      if (project_name)
+          CreateProjectSource( project_name, &=bitmap_support )
 
-      println ...
-        @|
-         |[OPTIONAL]
-         |Add a Markdown table with "Version" and "Date" rows to README.md to have those
-         |version and date values automatically updated during 'rogo commit x.y.z'.
-         |Example:
-         |
-         |About     | Current Release
-         |----------|-----------------------
-         |Version   | 1.0
-      println "Date      | $"(Date.today->String(&verbose))
-      println ...
-        @|Platforms | Windows, macOS, Linux
-         |
+        println ...
+          @|
+           |[OPTIONAL]
+           |Add a Markdown table with "Version" and "Date" rows to README.md to have those
+           |version and date values automatically updated during 'rogo commit x.y.z'.
+           |Example:
+           |
+           |About     | Current Release
+           |----------|-----------------------
+           |Version   | 1.0
+        println "Date      | $"(Date.today->String(&verbose))
+        println ...
+          @|Platforms | Windows, macOS, Linux
+           |
+      endIf
 
 endClass
