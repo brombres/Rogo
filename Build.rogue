@@ -274,7 +274,7 @@ routine compile_cpp
     local flags = Build.CC_FLAGS_UNIX
     if (flags != "") flags += " "
     flags += which{ Build.BUILD_MODE=="release":"-O3" || "-O0" }
-    local cc = "cc $ -Wall $.c -o $$"...
+    local cc = "cc $ -Wall $.c -o $$ -lm"...
       (flags,File(c_filepath).esc,exe_file.esc,libs)
     execute cc
   endIf

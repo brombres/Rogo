@@ -12,7 +12,7 @@ install: $(INSTALL_FOLDER)/rogo
 $(BUILD_FOLDER)/rogo: Source/Rogo.rogue
 	mkdir -p "$(BUILD_FOLDER)"
 	r2 Source/Rogo.rogue  --main --output=Build/Rogo --target=Console,C,macOS
-	cc -O3 -Wall Build/Rogo.c -o Build/rogo
+	cc -O3 -Wall Build/Rogo.c -o Build/rogo -lm
 
 $(INSTALL_FOLDER)/rogo: $(BUILD_FOLDER)/rogo
 	mkdir -p "$(INSTALL_FOLDER)" || (echo Retrying with sudo... && sudo mkdir -p "$(INSTALL_FOLDER)")
