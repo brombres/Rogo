@@ -16,13 +16,19 @@ $include CreateProjectSource
 #$ LINK         = -lalpha -lbeta    # Includes these additional flags when linking the buildfile.
 #$ LINK_LIBS    = true              # Links following LIBRARIES with this Build file
 #$ LINK_LIBS    = false             # Linking turned off for following LIBRARIES
-#$ LIBRARIES    = libalpha
-#$ LIBRARIES    = libbeta(library-name)
-#$ LIBRARIES    = libfreetype6-dev(freetype2)
+#$ LIBRARIES    = name
+#$ LIBRARIES    = name(<package-name>)
+#$ LIBRARIES    = name(OPTIONS...)           # 'name' is the default package name etc.
+#                 OPTIONS                    EXAMPLE
+#                 exe:<which-name>           exe:"wget"
+#                 exists-cmd:<exists-cmd>    exists-cmd:"which wget"
+#                 flags:<library-flags>      flags:"-I/opt/homebrew/opt/freetype/include/freetype2"
+#                 info:<info-name>           info:freetype2
+#                 info-cmd:<get-info-cmd>    info-cmd:"pkg-config --cflags freetype2"
+#                 install:<install-name>     install:libfreetype6-dev
+#                 install-cmd:<install-cmd>  install:"sudo apt-get install libfreetype6-dev"
+#                 package:<package-name>     package:libjpeg
 #$ DEPENDENCIES = Library/Rogue/**/*.rogue
-
-#$ LIBRARIES    = name(package)
-#$ LIBRARIES    = name(package:<package> install:<install-cmd> link:<link-flags> which:<which-name>)
 
 # Build.rogue source replacements - the libraries should also be declared in #$ LIBRARIES:
 #   $LIBRARY_FLAGS(lib1,lib2) -> -Ipath/to/lib1/include -Lpath/to/lib1/library -I ...
@@ -137,6 +143,7 @@ class Rogo [singleton]
       cache_file = "$/Cache-$.json" (rogo_folder,System.os)
       config     = @{ roguec:"roguec", filepath:cache_file.filepath }
       cache      = JSON.load( cache_file )
+      if (not cache.is_table) cache = @{}
 
       if (System.is_windows)
         config//cc = "cl /EHsc /nologo"
@@ -184,7 +191,8 @@ class Rogo [singleton]
         # Collect info for config
         collect_directives( File(forEach in buildfiles) )
 
-        # Select ROGUEC(macOS) or ROGUEC(Linux) etc. based on the OS and merge into to ROGUEC, etc.
+        # Select LIBRARIES(macOS), LIBRARIES(Linux), LIBRARIES(Linux-apt) etc. based on the OS
+        # and package manager and merge into to LIBRARIES, etc.
         local os_arg = "($)" (System.os.to_lowercase)
         local os_arg_plus_package_manager = "($-$)" (System.os.to_lowercase,package_manager)
         forEach (key in config.keys)
@@ -221,7 +229,8 @@ class Rogo [singleton]
         forEach (filepath in buildfiles)
           cmd += " " + (rogo_folder/File(filepath).filename).esc
         endForEach
-        cmd += " --api --debug --main --output=$ $" (base_name,roguec_args)
+        cmd += " --api --debug --main --output=$" (base_name)
+        cmd .= appending( roguec_args )
         println cmd
 
         if (0 != System.run(cmd))
@@ -235,14 +244,15 @@ class Rogo [singleton]
 
         forEach (library in config//libraries)
           install_library( library )
-          if (library//link)
+          if (library//link_libs)
             cmd += " $" (library_flags(library))
           endIf
         endForEach
 
         cmd += " $$" (which{System.is_windows:"/Fe"||"-o "},exe)
-        local link_args = config//link
-        if (link_args != "") cmd += " " + link_args
+        cmd .= appending( config//link )
+
+        if (System.is_linux) cmd += " -lm"
 
         println cmd
         if (0 != System.run(cmd)) System.exit( 1 )
@@ -388,82 +398,112 @@ class Rogo [singleton]
 
     method find_macos_library( library:Value )->Logical
       local name = library//name->String
-      local package = library//package->String
-
-      local result = run( "  pkg-config --cflags " + package )
-      if (result)
-        local flags = String[]
-
-        # cflags
-        flags.add( result )
-
-        # library( link:... ) flags
-        if (library//link and not library//link.is_logical)
-          # If the link flags are more than just 'true'.
-          flags.add( library//link )
-        endIf
-
-        # static library path
-        local candidates : String[]
-        result = run( "  pkg-config --libs-only-L " + package )
-        if (result and result.begins_with("-L"))
-          candidates = File( result.from(2) ).listing
-        else
-          result = run( "  brew list -v " + name )
-          if (result)
-            candidates = result.split( '\n' )
-          endIf
-        endIf
-
-        if (candidates)
-          candidates.keep( $.ends_with(".a") )
-          if (candidates.count) flags.add( candidates.first )  # .a file to link in
-        else
-          return false
-        endIf
-
-        local all_flags = flags.join( ' ' )
-        println "  Library flags: $" (all_flags)
+      # If an 'exe' name or is specified, that executable must exist.
+      if local exe = library//exe->String
+        if (not System.find_executable(exe)) return false
         if (not cache//library_flags) cache//library_flags = @{}
-        cache//library_flags[name] = all_flags
+        cache//library_flags[name] = ""
         save_cache
-        return true
       endIf
 
-      # "Library" may be executable package - use 'which' to check.
-      println "  which " + library["which"]
-      if (0 == System.run("which $ > /dev/null 2>&1"(library["which"])))
-        local flags = which{ library//link || Value("") }
-        if (flags != "") println "  Library flags: $" (flags)
+      # If an 'exists-cmd' is given, it must execute without error.
+      if local exists_cmd = library["exists-cmd"]->String
+        if (not run(exists_cmd)) return false
+      endIf
+
+      # Find flags using 'flags', 'info' name, 'info-cmd', 'package' name, or 'name', in that order
+      local flags = library//flags->String
+      if (not flags)
+        flags = fetch_macos_info( library["info"] )
+        if (not flags and library.contains("info-cmd"))
+          flags = run(library["info-cmd"])
+          if (not flags) throw Error( "Error executing library info command: $"(library["info-cmd"]) )
+        endIf
+        if (not flags) flags = fetch_macos_info( library["package"] )
+        if (not flags) flags = fetch_macos_info( name )
+      endIf
+
+      if (flags)
+        println "  Library flags: $" (flags)
         if (not cache//library_flags) cache//library_flags = @{}
         cache//library_flags[name] = flags
         save_cache
         return true
       endIf
 
+      # Check for an executable using the package name
+      if local exe = library//package->String
+        if (System.find_executable(exe))
+          if (not cache//library_flags) cache//library_flags = @{}
+          cache//library_flags[name] = ""
+          save_cache
+          return true
+        endIf
+      endIf
+
+      # Check for an executable using the library name
+      if (System.find_executable(name))
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = ""
+        save_cache
+        return true
+      endIf
+
       return false
+
+    method fetch_macos_info( package_name:String )->String
+      if (not package_name) return null
+
+      local info = run( "  pkg-config --cflags $"(package_name) )
+
+      local libs = run( "  pkg-config --libs-only-L $"(package_name) )
+      if (libs)
+        local listing = (File(libs.after_first("-L").trimmed)/"*.a").listing
+        if (listing.count) libs = listing.first
+      else
+        local listing = run( "  brew list -v " + package_name )
+        if (listing)
+          local candidates = listing.split( '\n' )
+          candidates.keep( $.ends_with(".a") )
+          if (candidates.count) libs = candidates.first  # .a file to link in
+        endIf
+      endIf
+
+      if (info or libs)
+        if (not info) info = ""
+        if (not libs) libs = ""
+        return info.appending(libs)
+      else
+        return null
+      endIf
 
     method install_macos_library( library:Value )
       local library_name = library//name->String
       println "Checking for library $..." (library_name)
 
+      if (find_macos_library(library)) return
+
+      # Install library
+      require_command_line
+      if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
+        throw Error( "Missing required library '$'." (library_name) )
+      endIf
+
+      local install_cmd : String
+
+      if local install_name = library//install->String
+        install_cmd = "brew install $" (install_name)
+      elseIf local cmd = library["install-cmd"]->String
+        install_cmd = cmd
+      elseIf local package_name = library//package->String
+        install_cmd = "brew install $" (package_name)
+      else
+        install_cmd = "brew install $" (library_name)
+      endIf
+
+      run( install_cmd )  # this could succeed in principal but return non-zero with a warning, as with zlib
       if (not find_macos_library(library))
-        # Install library
-        require_command_line
-        if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
-          throw Error( "Missing required library '$'." (library_name) )
-        endIf
-
-        # Two install options:
-        #   libname                 - install libname
-        #   libname(install:"cmd")  - install cmd
-        local install_cmd = library//name
-        if (library.contains("install")) install_cmd = library//install
-
-        run( "brew install $" (install_cmd) )  # this could succeed in principal but return non-zero with a warning, as with zlib
-        if (not find_macos_library(library))
-          throw Error( "Failed to install library '$'." (library_name) )
-        endIf
+        throw Error( "Failed to install library '$'." (library_name) )
       endIf
 
     method find_linux_library( library:Value )->Logical
@@ -619,7 +659,7 @@ class Rogo [singleton]
     method collect_directives( file:File, dependencies=null:Set<<String>> )
       if (not file.exists) return
 
-      forEach (line in LineReader(file))
+      forEach (line at line_index in LineReader(file))
         if (line.begins_with("#$"))
           local cmd = line.rightmost( -2 )
           local args = cmd.after_first( "=" ).trimmed
@@ -634,36 +674,60 @@ class Rogo [singleton]
 
             case "libraries"
               if (args.count)
-                local parser = JSONParser( Scanner(args) )
-                parser.consume_spaces
-                while (parser.has_another)
-                  local name = parse_filepath( parser )
-                  local entry = @{ name:name, link:link_libraries }
+                local scanner = Scanner(args)
+                scanner.consume_spaces
+                while (scanner.has_another)
+                  if (not scanner.next_is_identifier and not scanner.next_is_string)
+                    error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
+                  endIf
+                  local name = which{scanner.next_is_identifier:scanner.scan_identifier("-") || scanner.scan_string}
+                  local entry = @{ name:name, link_libs:link_libraries }
                   if (config[cmd]) config[cmd].add( entry )
-                  else             config[cmd] = @[]
-                  parser.consume_spaces
-                  entry//package = name.before_first( "-dev" )  # default of e.g. libpng-dev is libpng
-                  entry["which"] = name
-                  if (parser.consume('('))
-                    parser.consume_spaces
-                    while (parser.has_another)
-                      if (parser.consume(')')) escapeWhile
-                      local key = parser.parse_identifier
-                      parser.consume_spaces
-                      if (parser.consume(':'))
-                        parser.consume_spaces
-                        local value = parse_filepath( parser )
-                        entry[ key ] = value
+                  else             config[cmd] = @[entry]
+                  scanner.consume_spaces
+
+                  if (scanner.consume('('))
+                    scanner.consume_spaces
+                    while (scanner.has_another and not scanner.next_is(')'))
+                      if (not scanner.next_is_identifier and not scanner.next_is_string)
+                        error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
+                      endIf
+                      local key   = which{scanner.next_is_identifier:scanner.scan_identifier("-") || scanner.scan_string}
+                      local value : Value
+                      scanner.consume_spaces
+                      if (scanner.consume(':'))
+                        scanner.consume_spaces
+                        if (scanner.next_is_string)             value = scanner.scan_string
+                        elseIf (not scanner.next_is_identifier) error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
+                        else                                    value = scanner.scan_identifier("-")
                       else
                         # An identifier with no mapped value is treated as the package name
-                        entry//package = key
+                        value = key
+                        key = "package"
                       endIf
-                      parser.consume_spaces
-                      parser.consume( ',' )
-                      parser.consume_spaces
+
+                      contingent
+                        sufficient (key == "exe")
+                        sufficient (key == "exists-cmd")
+                        sufficient (key == "flags")
+                        sufficient (key == "info")
+                        sufficient (key == "info-cmd")
+                        sufficient (key == "install")
+                        sufficient (key == "install-cmd")
+                        sufficient (key == "package")
+                        error( file, line_index+1, "Invalid library option. Supported options are exe, exists-cmd, flags, info, info-cmd, install, install-cmd, and package." )
+                      endContingent
+
+                      entry[key] = value
+
+                      scanner.consume_spaces
+                      scanner.consume( ',' )
+                      scanner.consume_spaces
                     endWhile
+                    if (not scanner.consume(')')) error( file, scanner.line, "Closing ')' expected." )
                   endIf
-                  parser.consume_spaces
+                  scanner.consume_spaces
+
                 endWhile
               endIf
 
@@ -703,6 +767,14 @@ class Rogo [singleton]
           endWhich
         endIf
       endForEach
+
+    method error( file:File, line:Int32, message:String )
+      error.println "=" * 80
+      error.println ''ERROR in "$" line $''(file,line)
+      error.println
+      error.println message
+      error.println "=" * 80
+      System.exit 1
 
     method scan_and_rewrite( file:File, &write_autodoc )
       if (not file.exists) return
@@ -754,16 +826,6 @@ class Rogo [singleton]
       endIf
 
       writer.close
-
-    method parse_filepath( parser:JSONParser )->String
-      if (parser.next_is('"')) return parser.parse_string
-
-      local buffer = String()
-      while (parser.has_another and not " \n()".contains(parser.peek)) buffer.print( parser.read )
-
-      if (buffer.count == 0) buffer.print( parser.read )
-
-      return buffer
 
 endClass
 
