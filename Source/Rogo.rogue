@@ -398,6 +398,7 @@ class Rogo [singleton]
 
     method find_macos_library( library:Value )->Logical
       local name = library//name->String
+
       # If an 'exe' name or is specified, that executable must exist.
       if local exe = library//exe->String
         if (not System.find_executable(exe)) return false
@@ -508,12 +509,33 @@ class Rogo [singleton]
 
     method find_linux_library( library:Value )->Logical
       local name = library//name->String
-      local package = library//package->String
 
-      # Try pkg-config first
-      local result = run( "  pkg-config --cflags --libs " + package )
-      if (result)
-        local flags = result
+      # If an 'exe' name or is specified, that executable must exist.
+      if local exe = library//exe->String
+        if (not System.find_executable(exe)) return false
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = ""
+        save_cache
+      endIf
+
+      # If an 'exists-cmd' is given, it must execute without error.
+      if local exists_cmd = library["exists-cmd"]->String
+        if (not run(exists_cmd)) return false
+      endIf
+
+      # Find flags using 'flags', 'info' name, 'info-cmd', 'package' name, or 'name', in that order
+      local flags = library//flags->String
+      if (not flags)
+        flags = fetch_linux_info( library["info"] )
+        if (not flags and library.contains("info-cmd"))
+          flags = run(library["info-cmd"])
+          if (not flags) throw Error( "Error executing library info command: $"(library["info-cmd"]) )
+        endIf
+        if (not flags) flags = fetch_linux_info( library["package"] )
+        if (not flags) flags = fetch_linux_info( name )
+      endIf
+
+      if (flags)
         println "  Library flags: $" (flags)
         if (not cache//library_flags) cache//library_flags = @{}
         cache//library_flags[name] = flags
@@ -521,54 +543,71 @@ class Rogo [singleton]
         return true
       endIf
 
-      # Next try rpm -ql for Yum+RPM Linux
-      if (package_manager_list)
-        println "  No found with pkg-config; checking with rpm"
-        result = run( "  $ $" (package_manager_list,package) )
-        if (result)
-          println "  Located"
+      # Check for an executable using the package name
+      if local exe = library//package->String
+        if (System.find_executable(exe))
           if (not cache//library_flags) cache//library_flags = @{}
-          cache//library_flags[name] = "" # library exists but has no flags
+          cache//library_flags[name] = ""
           save_cache
           return true
         endIf
       endIf
 
-      # "Library" may be executable package - use 'which' to check.
-      println "  which " + library["which"]
-      if (0 == System.run("which $ > /dev/null 2>&1"(library["which"])))
+      # Check for an executable using the library name
+      if (System.find_executable(name))
         if (not cache//library_flags) cache//library_flags = @{}
-        cache//library_flags[name] = "" # library exists but has no flags
+        cache//library_flags[name] = ""
         save_cache
         return true
       endIf
 
       return false
 
+    method fetch_linux_info( package_name:String )->String
+      if (not package_name) return null
+
+      local info = run( "  pkg-config --cflags $"(package_name) )
+      if (info) return info
+
+      # Try rpm -ql for Yum+RPM Linux
+      if (not info and package_manager_list)
+        println "  Not found with pkg-config; checking with rpm..."
+        local result = run( "  $ $" (package_manager_list,package_name) )
+        if (result)
+          println "  Located"
+          return "" # TODO: check result of rpm -ql
+        endIf
+      endIf
+
+      return null
+
     method install_linux_library( library:Value )
       local library_name = library//name->String
-
       println "Checking for library $..." (library//name->String)
 
+      if (find_linux_library(library)) return
+
+      # Install library
+      require_command_line
+      if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
+        throw Error( "Missing required library '$'." (library_name) )
+      endIf
+
+      local install_cmd : String
+
+      if local install_name = library//install->String
+        install_cmd = "$ $" (package_manager_install,install_name)
+      elseIf local cmd = library["install-cmd"]->String
+        install_cmd = cmd
+      elseIf local package_name = library//package->String
+        install_cmd = "$ $" (package_manager_install,package_name)
+      else
+        install_cmd = "$ $" (package_manager_install,library_name)
+      endIf
+
+      run( install_cmd )  # this could succeed in principal but return non-zero with a warning, as with zlib
       if (not find_linux_library(library))
-        # Install library
-        require_command_line
-        if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
-          throw Error( "Missing required library '$'." (library_name) )
-        endIf
-
-        # Two install options:
-        #   libname                 - install libname
-        #   libname(install:"cmd")  - install cmd
-        local install_cmd = library//name
-        if (library.contains("install")) install_cmd = library//install
-
-        local cmd = "$ $" (package_manager_install,install_cmd)
-        print "> "
-        println cmd
-        if (System.run(cmd) or not find_linux_library(library))
-          throw Error( "Failed to install library '$'." (library_name) )
-        endIf
+        throw Error( "Failed to install library '$'." (library_name) )
       endIf
 
     method library_flags( library:Value )->String
