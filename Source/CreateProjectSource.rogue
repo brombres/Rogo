@@ -15,7 +15,7 @@ class CreateProjectSource
       builder.print   "$requireRogue "
       builder.println ''"$"'' ($rogueVersion)
       builder.println
-      builder.println "uses Utility/CommandLineParser"
+      builder.println "uses Console/CommandLineParser"
       if (bitmap_support)
         builder.println "uses Bitmap"
       endIf

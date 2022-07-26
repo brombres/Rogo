@@ -842,6 +842,12 @@ class Rogo [singleton]
               endForEach
               line = "$$$" (line.before(dollar.value),replacement,line.after(close_paren.value))
             endIf
+          elseIf (line.contains_at("$LIBRARY_FLAGS",dollar.value))
+            local replacement = ""
+            forEach (lib in config//libraries)
+              replacement .= appending( library_flags(lib) )
+            endForEach
+            line = line.replacing_at( dollar.value, 14, replacement )
           endIf
           dollar = line.locate( '$', dollar.value+1 )
         endWhile

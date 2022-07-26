@@ -101,26 +101,26 @@ class CreateBuildfile
            |    if (source_files.any_newer_than(c_filepath))
            |      compile_rogue
            |    endIf
-           |    compile_cpp
+           |    compile_c
            |  endIf
            |endRoutine
            |
            |routine rogo_build_debug
            |  # Force-rebuilds in debug mode.
            |  Build.BUILD_MODE = "debug"
-           |  rogo_rebuild
+           |  rebuild
            |endRoutine
            |
            |routine rogo_build_release
            |  # Force-rebuilds in release mode.
            |  Build.BUILD_MODE = "release"
-           |  rogo_rebuild
+           |  rebuild
            |endRoutine
            |
-           |routine rogo_rebuild
+           |routine rebuild
            |  # Force-rebuilds project.
            |  compile_rogue
-           |  compile_cpp
+           |  compile_c
            |endRoutine
            |
            |routine rogo_install
@@ -233,7 +233,7 @@ class CreateBuildfile
            |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo commit'." )
            |  rogo_update_version( new_version )
            |
-           |  if (not System.find_program("git")) throw Error( "Git must be installed." )
+           |  if (not System.find_executable("git")) throw Error( "Git must be installed." )
            |  if (project_has_uncommitted_changes)
            |    execute ''git commit -am "[v$]"'' (new_version)
            |  else
@@ -259,7 +259,7 @@ class CreateBuildfile
           @|routine rogo_publish( new_version:String )
            |  # Updates source and README version number, commits, and publishes a release to GitHub.
            |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo publish'." )
-           |  if (not System.find_program("gh")) throw Error( "The GitHub command line tool 'gh' must be installed." )
+           |  if (not System.find_executable("gh")) throw Error( "The GitHub command line tool 'gh' must be installed." )
            |  rogo_commit( new_version )
            |
            |  # These can be hard-coded to suit your project
@@ -301,16 +301,24 @@ class CreateBuildfile
        endIf
 
        builder.println ...
-          @|routine compile_rogue
+           @|routine compile_rogue
            |  local src_filepath = "Source/$.rogue" (Build.PROJECT)
            |  local c_filepath = "Build/$-$" (Build.PROJECT,System.os)
            |  local flags = Build.ROGUEC_FLAGS
            |  if (Build.BUILD_MODE == "debug") flags = flags.with_suffix(' ') + "--debug"
-           |  execute "r2 $ $ --main --output=$ --target=Console,C,$"...
-           |          (File(src_filepath).esc,flags,File(c_filepath).esc,System.os)
+           |  local cmd = "r2 $ $ --main --output=$ --target=Console,C,$"...
+           |              (File(src_filepath).esc,flags,File(c_filepath).esc,System.os)
+           |  println "> " + cmd
+           |  local status = Process.run( cmd, &env )
+           |  local result = status->String
+           |  println result
+           |  if (not status.success) throw Error( "Build failed." )
+           |  if (result.contains("ROGO:"))
+           |    System.exit( execute("rogo".appending(System.command_line_arguments.join(' '))) )
+           |  endIf
            |endRoutine
            |
-           |routine compile_cpp
+           |routine compile_c
            |  local c_filepath = File( "Build/$-$" (Build.PROJECT,System.os) ).esc
            |  local exe_filepath = exe_file.esc
            |  if (System.is_windows)
@@ -320,12 +328,14 @@ class CreateBuildfile
            |    flags += which{ Build.BUILD_MODE=="release":"/Ob2ity /GF /Gy" || "/Od" }
            |    local obj_filepath = File( "Build/$-Windows.obj"(Build.PROJECT) ).esc
            |    local cc = "cl $ /EHsc /nologo $.c /Fo$ /Fe$ $" (flags,c_filepath,obj_filepath,exe_filepath,libs)
+           |    cc .= appending( "$LIBRARY_FLAGS" )
            |    #cc += " /link /LTCG"   # uncomment this if there are errors linking libraries
            |    execute cc
            |  else
 
         if (bitmap_support)
-          builder.println @|    local libs = which{ System.is_linux:" $LIBRARY_FLAGS(libpng-dev,libjpeg-dev)" || " $LIBRARY_FLAGS(libpng,libjpeg,zlib)" }
+          #builder.println @|    local libs = which{ System.is_linux:" $LIBRARY_FLAGS(libpng-dev,libjpeg-dev)" || " $LIBRARY_FLAGS(libpng,libjpeg,zlib)" }
+          builder.println @|    local libs = " $LIBRARY_FLAGS"
         else
           builder.println @|    local libs = ""
         endIf
@@ -335,6 +345,7 @@ class CreateBuildfile
            |    flags += which{ Build.BUILD_MODE=="release":"-O3" || "-O0" }
            |    local cc = "cc $ -Wall $.c -o $$"...
            |      (flags,File(c_filepath).esc,exe_file.esc,libs)
+           |    cc .= appending( "$LIBRARY_FLAGS" )
            |    execute cc
            |  endIf
            |endRoutine
@@ -421,7 +432,7 @@ class CreateBuildfile
          |#                                    # file (otherwise just installs them)
          |#   LINK_LIBS    = false             # Linking turned off for following
          |#                                    # LIBRARIES - info can still be obtained
-         |#                                    # from $LIBRARY_FLAGS()
+         |#                                    # from $LIBRARY_FLAGS or $LIBRARIES(libname,...)
          |#   LIBRARIES    = libalpha
          |#   LIBRARIES    = libbeta(library-name)
          |#   LIBRARIES    = libfreetype6-dev(freetype2)
