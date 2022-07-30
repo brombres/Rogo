@@ -728,17 +728,21 @@ class Rogo [singleton]
                   if (scanner.consume('('))
                     scanner.consume_spaces
                     while (scanner.has_another and not scanner.next_is(')'))
-                      if (not scanner.next_is_identifier and not scanner.next_is_string)
+                      if (not scanner.next_is_identifier("-") and not scanner.next_is_string)
                         error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
                       endIf
-                      local key   = which{scanner.next_is_identifier:scanner.scan_identifier("-") || scanner.scan_string}
+                      local key   = which{scanner.next_is_identifier('-'):scanner.scan_identifier("-") || scanner.scan_string}
                       local value : Value
                       scanner.consume_spaces
                       if (scanner.consume(':'))
                         scanner.consume_spaces
-                        if (scanner.next_is_string)             value = scanner.scan_string
-                        elseIf (not scanner.next_is_identifier) error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
-                        else                                    value = scanner.scan_identifier("-")
+                        if (scanner.next_is_string)
+                          value = scanner.scan_string
+                        elseIf (not scanner.next_is_identifier('-'))
+                          error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
+                        else
+                          value = scanner.scan_identifier("-")
+                        endIf
                       else
                         # An identifier with no mapped value is treated as the package name
                         value = key
@@ -754,7 +758,7 @@ class Rogo [singleton]
                         sufficient (key == "install")
                         sufficient (key == "install-cmd")
                         sufficient (key == "package")
-                        error( file, line_index+1, "Invalid library option. Supported options are exe, exists-cmd, flags, info, info-cmd, install, install-cmd, and package." )
+                        error( file, line_index+1, "Invalid library option '$'. Supported options are exe, exists-cmd, flags, info, info-cmd, install, install-cmd, and package."(key) )
                       endContingent
 
                       entry[key] = value
