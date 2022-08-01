@@ -18,6 +18,7 @@ class CreateProjectSource
       builder.println "uses Console/CommandLineParser"
       if (bitmap_support)
         builder.println "uses Bitmap"
+        builder.println "uses Bitmap/IO"
       endIf
       builder.println
 
