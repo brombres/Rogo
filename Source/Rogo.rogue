@@ -341,6 +341,11 @@ class Rogo [singleton]
       endIf
 
     method install_library( library:Value )
+      # Can skip the install if the library specifies 'exists-cmd:true'.
+      if local exists_cmd = library["exists-cmd"]->String
+        if (exists_cmd == "true") return
+      endIf
+
       local lib = cache//library_flags[ library//name ]
       if (lib)
         # Make sure each filepath actually exists
@@ -407,9 +412,9 @@ class Rogo [singleton]
         save_cache
       endIf
 
-      # If an 'exists-cmd' is given, it must execute without error.
+      # If an 'exists-cmd' is given, it must execute without error (specifying 'true' is permitted).
       if local exists_cmd = library["exists-cmd"]->String
-        if (not run(exists_cmd)) return false
+        if (exists_cmd != "true" and not run(exists_cmd)) return false
       endIf
 
       # Find flags using 'flags', 'info' name, 'info-cmd', 'package' name, or 'name', in that order
@@ -518,9 +523,9 @@ class Rogo [singleton]
         save_cache
       endIf
 
-      # If an 'exists-cmd' is given, it must execute without error.
+      # If an 'exists-cmd' is given, it must execute without error (specifying 'true' is permitted).
       if local exists_cmd = library["exists-cmd"]->String
-        if (not run(exists_cmd)) return false
+        if (exists_cmd != "true" and not run(exists_cmd)) return false
       endIf
 
       # Find flags using 'flags', 'info' name, 'info-cmd', 'package' name, or 'name', in that order
