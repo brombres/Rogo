@@ -362,8 +362,10 @@ class Rogo [singleton]
 
           contingent
             forEach (part in parts)
-              part .= after_any( "-I" )
-              necessary (File(part).exists)
+              if (not part.begins_with("-l"))
+                part .= after_any("-I").after_any("-L")
+                necessary (File(part).exists)
+              endIf
             endForEach
           satisfied
             return
