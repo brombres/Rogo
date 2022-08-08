@@ -111,20 +111,30 @@ class CreateBuildfile
            |
            |routine rogo_build_debug
            |  # Force-rebuilds in debug mode.
-           |  Build.BUILD_MODE = "debug"
-           |  rebuild
+           |  rogo_rebuild_debug
            |endRoutine
            |
            |routine rogo_build_release
            |  # Force-rebuilds in release mode.
-           |  Build.BUILD_MODE = "release"
-           |  rebuild
+           |  rogo_rebuild_release
            |endRoutine
            |
-           |routine rebuild
+           |routine rogo_rebuild
            |  # Force-rebuilds project.
            |  compile_rogue
            |  compile_c
+           |endRoutine
+           |
+           |routine rogo_rebuild_debug
+           |  # Force-rebuilds in debug mode.
+           |  Build.BUILD_MODE = "debug"
+           |  rogo_rebuild
+           |endRoutine
+           |
+           |routine rogo_rebuild_release
+           |  # Force-rebuilds in release mode.
+           |  Build.BUILD_MODE = "release"
+           |  rogo_rebuild
            |endRoutine
            |
            |routine rogo_install
