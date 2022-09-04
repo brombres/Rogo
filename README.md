@@ -21,9 +21,10 @@ Platforms | Windows, macOS, Linux
 *Or:*
 
 1. Install [rogue](https://github.com/AbePralle/Rogue).
-2. `make install`
+2. Clone this repo.
+3. `make install`
 
-Windows: note that 'make' is this project's make.bat script.
+On Windows, `make install` will run this project's `make.bat` script.
 
 # Adding Rogo to a Project
 
@@ -51,13 +52,13 @@ Windows: note that 'make' is this project's make.bat script.
 
 # Overview
 
-When you run `rogo command [args]` in a folder, Rogo looks for any Rogue files named `Build.rogue`, `BuildCore.rogue`, and/or `BuildLocal.rogue` and executes `routine rogo_command(<parameters>)` that should be in one of those three files.
+When you run `rogo command [args]` in a folder, Rogo looks for Rogue files named `Build.rogue`, `BuildCore.rogue`, and/or `BuildLocal.rogue`, compiles them together if necessary, and runs the resulting build executable. The build executable in turn makes a call to `routine rogo_command(<parameters>)` that should be defined in one of the files.
 
 For example, `rogo add 3 5` would execute `routine rogo_add(a:Value,b:Value)` which might be defined as `println a+b`.
 
-Routines can execute any arbitrary Rogue code which makes Rogo able to handle any build system task.
+Routines can execute any arbitrary Rogue code (including inline C code and including launching other executable processes) which makes Rogo able to handle any build system task.
 
-Routine parameters can be specific datatypes such as `Int32`, `Real64`, and `Logical`; args are coerced into the given parameter type. Parameters can also be general `Value` types. If multiple args are given and only a single `Value` parameter exists, that parameter will be a `Value` list of all args.
+Routine parameters can be specific datatypes such as `Int32`, `Real64`, and `Logical`; args are coerced into the given parameter type. Parameters can also be generic `Value` types. If multiple args are given and only a single `Value` parameter exists, that parameter will be a `Value` list of all args.
 
 Multi-word commands can be used; the build framework will use the longest match possible for the routine name before turning the remainder of the command line args into call args. For example, `rogo alpha bravo charlie` would call `routine rogo_alpha_bravo(arg:String)` and `arg` would be "charlie".
 
@@ -69,7 +70,7 @@ Filename          | Description
 ------------------|-----------------------------------------
 `Build.rogue`     | The standard build file. Often the only file when there are no special build needs.
 `BuildCore.rogue` | For any projects that need to define a build system while allowing developers to add on their own project-level build commands, it is recommended that the project maintainer place their build commands in `BuildCore.rogue` and leave `Build.rogue` available for developers to customize.
-`BuildLocal.rogue`| Intended for developers to add on their own individual build commands that won't be committed to the repo. It is recommended that `BuildLocal.rogue` be added to `.gitignore`.
+`BuildLocal.rogue`| Intended for developers to add on their own individual build commands that won't be committed to the repo. `BuildLocal.rogue` be added to `.gitignore`.
 
 Whenever `rogo` is run it checks to see if any of the three build files have been modified relative to the build executable that's placed in hidden folder `.rogo/`. If so then a `roguec` recompile is invoked and then the build executable is launched.
 
@@ -79,17 +80,28 @@ Rogo recognizes a number of *directives* given in the build files. Most directiv
 
 ## Comment Directives
 
-### CPP
+### CC
 
-    #$ CPP = g++ -Wall -std=gnu++11 -fno-strict-aliasing -Wno-invalid-offsetof
+    #  Defaults shown
+    #$ CC          = gcc
+    #$ CC(Windows) = cl
 
 Defines the C++ command that should be used to compile the RogueC-generated .cpp build file. Can include compiler options.
 
-### CPP_ARGS
+### CC_ARGS
 
-    #$ CPP_ARGS = -a -b -c
+    #  Defaults shown
+    #$ CC_ARGS          = -Wall
+    #$ CC_ARGS(Windows) = /EHsc /nologo
 
 Gives additional compile options. Stacks such that options are cumulative.
+
+### CC_LINK
+
+    #$ CC_LINK = -lalpha -lbeta
+
+Optional C linker flags used for compiling this build.
+
 
 ### DEPENDENCIES
 
@@ -101,30 +113,33 @@ Lists additional .rogue source files that Rogo should be aware of. The build exe
 
     #$ LIBRARIES = libname
     #$ LIBRARIES = libname(<package-name>)
-    #$ LIBRARIES = libname(package:<package-name> install:<install-cmd> link:<link-flags> which:<which-name>)
+    #$ LIBRARIES = libname(OPTIONS...)
 
-Element          | Description
------------------|----------------------------------------------------
-*libname*        | The main name of the library that should be installed, for example `libpng-dev`.
-*package*        | The name of the library (such as `libpng`) that is used with `pkg-config` to obtain linking flags. Defaults to *libname* without any `-dev` suffix.
-*install*        | The console command that should be executed to install the library. Defaults to a platform-appropriate install such as `brew install <libname>`.
-*link*           | The C++ linker flags and other flags which should be sent to the C++ compile step. May also specify `false` to prevent this library from being linked.
-*which*          | When installed software is an app rather than a library, `which libname` is used to check and see if it exists. A custom command may be specified here.
+Option                    | Example
+--------------------------|----------------------------------------------------
+exe:<which-name>          | exe:"wget"
+exists-cmd:<exists-cmd>   | exists-cmd:"which wget"
+flags:<library-flags>     | flags:"-I/opt/homebrew/opt/freetype/include/freetype2"
+info:<info-name>          | info:freetype2
+info-cmd:<get-info-cmd>   | info-cmd:"pkg-config --cflags freetype2"
+install:<install-name>    | install:libfreetype6-dev
+install-cmd:<install-cmd> | install:"sudo apt-get install libfreetype6-dev"
+package:<package-name>    | package:libjpeg
 
-Various ways to automatically install (via `brew`, `apt`, or `yum`) and possibly link various third-party libraries into the compilation of the Rogo build file and/or C++ files that Rogo builds.
+Various ways to have Rogo automatically install (via `brew`, `apt`, or `yum`) and possibly link various third-party libraries into the compilation of the Rogo build file and/or C++ files that Rogo builds.
 
-### LINK
+### LINK_LIBS
 
-    #$ LINK = true
-    #$ LINK = false
+    #$ LINK_LIBS = true
+    #$ LINK_LIBS = false
 
-Specifies whether any following `#$LIBRARIES` will automatically be linked with the build executable when Rogo recompiles it.
+Specifies whether the `#$LIBRARIES` that follow will automatically be linked with the build executable when Rogo recompiles it. `false` by default.
 
 For example:
 
     # Build.rogue
-    #$ LIBRARIES = libpng   # Install libpng but do not link it with this Build.rogue executable
-    #$ LINK = true          # Turn on build file linking of following LIBRARIES
+    #$ LIBRARIES = libpng   # Install libpng but do not link it with this Build.rogue executable (`LINK_LIBS` is `false` by default).
+    #$ LINK_LIBS = true     # Turn on build file linking for any following LIBRARIES
     #$ LIBRARIES = libjpeg  # Install libjpeg and link it with this Build.rogue executable
 
 Linking libraries into the build executable allows them to be used from the Rogo build - for example, if PNG and JPEG libs are included then Rogue's `Bitmap` module can be used to load, save, and manipulate images.
@@ -157,9 +172,8 @@ By default Rogo directives apply to all platforms. However you can write e.g. `#
 
 # Source-Level Replacements
 
+    $LIBRARY_FLAGS
     $LIBRARY_FLAGS(libname1,...)
 
-When compiling to a build executable, Rogo replaces `$LIBRARY_FLAGS(...)` with the appropriate C++ compiler flags. The given "libname" should be specified in a `#$LIBRARIES` directive.
-
-For an example, create a starter project with `rogo --create --project=Test --bitmap` and see how `$LIBRARY_FLAGS()` is utilized in `Build.rogue`.
+When compiling to a build executable, Rogo replaces `$LIBRARY_FLAGS(...)` with the appropriate C++ compiler args. The given "libname" should be specified in a `#$LIBRARIES` directive. If no libraries are specified, args for all libraries are used.
 
