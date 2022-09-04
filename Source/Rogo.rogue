@@ -223,7 +223,7 @@ class Rogo [singleton]
         endForEach
 
         local roguec = config//roguec
-        if (not File(roguec).exists) roguec = "r2"  # use system default
+        if (not File(roguec).exists) roguec = "roguec"  # use system default
         local roguec_args = config//roguec_args->String
         local cmd =  "$ --target=C++,Console,$" (roguec,System.os)
         forEach (filepath in buildfiles)
