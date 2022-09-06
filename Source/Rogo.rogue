@@ -270,7 +270,9 @@ class Rogo [singleton]
         File( File(exe).filename.before_last(".exe") + ".obj" ).delete
       endIf
 
-      local exit_code = System.run( ''$ $'' (exe,resolved_args.map<<String>>( (arg)=>Rogo.prep_arg(arg) ).join(" ")) )
+      local cmd_args = resolved_args.map<<String>>( (arg)=>Rogo.prep_arg(arg) ).join(" ")
+      local cmd = ''$ $'' (File(exe).conventional_filepath,cmd_args)
+      local exit_code = System.run( cmd )
       System.exit( exit_code )
 
     method prep_arg( arg:String )->String
