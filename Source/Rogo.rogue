@@ -235,22 +235,17 @@ class Rogo [singleton]
         endIf
 
         if (not config.contains("cc"))
-          if (System.is_windows)
-            config//cc = "cl"
-          else
-            config//cc = "gcc"
-          endIf
+          if (System.is_windows) config//cc = "cl"
+          else                   config//cc = "gcc"
         endIf
 
-        if (not config.contains("cc_args"))
-          if (System.is_windows)
-            config//cc_args = "/EHsc /nologo"
-          else
-            config//cc_args = "-Wall -fno-strict-aliasing"
-          endIf
-        endIf
+        cmd = config//cc->String
 
-        cmd = config//cc->String.appending( config//cc_args->String )
+        # Fixed options
+        if (System.is_windows) cmd .= appending( "/EHsc /nologo" )
+        else                   cmd .= appending( "-Wall -fno-strict-aliasing" )
+
+        cmd .= appending( config//cc_args->String )
         cmd += " $.c"(base_name)
 
         forEach (library in config//libraries)
@@ -260,14 +255,16 @@ class Rogo [singleton]
           endIf
         endForEach
 
-        cmd += " $$" (which{System.is_windows:"/Fe"||"-o "},exe)
+        if (System.is_windows) cmd .= appending( "/Fo.rogo/Build.obj /Fe$"(exe) )
+        else                   cmd .= appending( "-o "+exe )
+
         cmd .= appending( config//cc_link )
 
-        if (System.is_linux) cmd += " -lm"
+        # Fixed link flags
+        cmd += " -lm"
 
         println cmd
         if (0 != System.run(cmd)) System.exit( 1 )
-        File( File(exe).filename.before_last(".exe") + ".obj" ).delete
       endIf
 
       local cmd_args = resolved_args.map<<String>>( (arg)=>Rogo.prep_arg(arg) ).join(" ")
