@@ -261,7 +261,7 @@ class Rogo [singleton]
         cmd .= appending( config//cc_link )
 
         # Fixed link flags
-        cmd += " -lm"
+        if (not System.is_windows) cmd += " -lm"
 
         println cmd
         if (0 != System.run(cmd)) System.exit( 1 )
