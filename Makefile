@@ -27,7 +27,7 @@ install: $(INSTALL_FOLDER)/rogo
 $(BUILD_FOLDER)/Rogo-$(PLATFORM): Source/Rogo.rogue
 	mkdir -p "$(BUILD_FOLDER)"
 	roguec Source/Rogo.rogue  --main --output=Build/Rogo --target=Console,C,macOS
-	cc -O3 -Wall Build/Rogo.c -o $(BUILD_FOLDER)/Rogo-$(PLATFORM) -lm
+	cc -O3 -Wall -fno-strict-aliasing Build/Rogo.c -o $(BUILD_FOLDER)/Rogo-$(PLATFORM) -lm
 
 $(INSTALL_FOLDER)/rogo: $(BUILD_FOLDER)/Rogo-$(PLATFORM)
 	mkdir -p "$(INSTALL_FOLDER)" || (echo Retrying with sudo... && sudo mkdir -p "$(INSTALL_FOLDER)")
