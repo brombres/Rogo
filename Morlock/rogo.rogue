@@ -1,4 +1,8 @@
 class RogoPackage : Package
   PROPERTIES
     name = "abepralle/rogo"
+
+  METHODS
+    method handle_uninstall
+      throw error( "Essential package $ cannot be uninstalled."(name) )
 endClass
