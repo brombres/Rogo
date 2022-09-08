@@ -347,7 +347,7 @@ class CreateBuildfile
            |    local flags = Build.CC_FLAGS_UNIX
            |    if (flags != "") flags += " "
            |    flags += which{ Build.BUILD_MODE=="release":"-O3" || "-O0" }
-           |    local cc = "cc $ -Wall -fno-strict-aliasing $.c -o $" (flags,File(c_filepath).esc,exe_file.esc)
+           |    local cc = "cc $ -Wall -fno-strict-aliasing $.c -o $ -lm" (flags,File(c_filepath).esc,exe_file.esc)
            |    cc .= appending( "$LIBRARY_FLAGS" )
            |    execute cc
            |  endIf
