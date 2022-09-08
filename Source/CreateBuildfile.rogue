@@ -297,9 +297,9 @@ class CreateBuildfile
            |    if (not main_branch) throw Error( "Unable to detect name of main (release) branch." )
            |  endIf
            |
+           |  execute "git push origin $"(cur_branch)
            |  if (cur_branch != main_branch)
            |    if (not Console.input("$ will be merged into $. Continue? "(cur_branch,main_branch)).to_lowercase.begins_with('y')) return
-           |    execute "git push origin $"(cur_branch)
            |    execute "git checkout $"(main_branch)
            |    execute "git pull"
            |    execute "git merge $"(cur_branch)
