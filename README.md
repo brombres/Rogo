@@ -5,7 +5,7 @@ Rogue-based imperative build-your-own build system
 
 About     | Current Release
 ----------|-----------------------
-Version   | 2.0.1
+Version   | 2.0.2
 Date      | September 7, 2022
 Platforms | Windows, macOS, Linux
 
