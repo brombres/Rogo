@@ -91,7 +91,7 @@ Defines the C++ command that should be used to compile the RogueC-generated .cpp
 ### CC_ARGS
 
     #$ CC_ARGS          = -Wno-suchandsuch
-    #$ CC_ARGS(Windows) = /bigobject
+    #$ CC_ARGS(Windows) = /bigobj
 
 Gives additional compile options. Stacks such that options are cumulative.
 
