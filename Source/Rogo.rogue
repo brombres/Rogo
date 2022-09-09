@@ -415,6 +415,7 @@ class Rogo [singleton]
 
     method find_macos_library( library:Value )->Logical
       local name = library//name->String
+      local exists = false
 
       # If an 'exe' name or is specified, that executable must exist.
       if local exe = library//exe->String
@@ -422,11 +423,13 @@ class Rogo [singleton]
         if (not cache//library_flags) cache//library_flags = @{}
         cache//library_flags[name] = ""
         save_cache
+        exists = true
       endIf
 
       # If an 'exists-cmd' is given, it must execute without error (specifying 'true' is permitted).
       if local exists_cmd = library["exists-cmd"]->String
         if (exists_cmd != "true" and not run(exists_cmd)) return false
+        exists = true
       endIf
 
       # Find flags using 'flags', 'info' name, 'info-cmd', 'package' name, or 'name', in that order
@@ -448,6 +451,8 @@ class Rogo [singleton]
         save_cache
         return true
       endIf
+
+      if (exists) return true
 
       # Check for an executable using the package name
       if local exe = library//package->String
@@ -526,6 +531,7 @@ class Rogo [singleton]
 
     method find_linux_library( library:Value )->Logical
       local name = library//name->String
+      local exists = false
 
       # If an 'exe' name or is specified, that executable must exist.
       if local exe = library//exe->String
@@ -533,11 +539,13 @@ class Rogo [singleton]
         if (not cache//library_flags) cache//library_flags = @{}
         cache//library_flags[name] = ""
         save_cache
+        exists = true
       endIf
 
       # If an 'exists-cmd' is given, it must execute without error (specifying 'true' is permitted).
       if local exists_cmd = library["exists-cmd"]->String
         if (exists_cmd != "true" and not run(exists_cmd)) return false
+        exists = true
       endIf
 
       # Find flags using 'flags', 'info' name, 'info-cmd', 'package' name, or 'name', in that order
@@ -559,6 +567,8 @@ class Rogo [singleton]
         save_cache
         return true
       endIf
+
+      if (exists) return true
 
       # Check for an executable using the package name
       if local exe = library//package->String
