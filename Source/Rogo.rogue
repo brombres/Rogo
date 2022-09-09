@@ -14,7 +14,7 @@ $include CreateProjectSource
 #$ CC               = gcc
 #$ CC(Windows)      = cl
 #$ CC_ARGS          = -Wall -fno-strict-aliasing
-#$ CC_ARGS(Windows) = /EHsc /nologo
+#$ CC_ARGS(Windows) = /somearg
 #$ CC_LINK          = -lalpha -lbeta  # Includes these additional flags when linking the buildfile.
 #$ LINK_LIBS    = true              # Links following LIBRARIES with this Build file
 #$ LINK_LIBS    = false             # Linking turned off for following LIBRARIES
@@ -242,7 +242,7 @@ class Rogo [singleton]
         cmd = config//cc->String
 
         # Fixed options
-        if (System.is_windows) cmd .= appending( "/EHsc /nologo" )
+        if (System.is_windows) cmd .= appending( "/nologo" )
         else                   cmd .= appending( "-Wall -fno-strict-aliasing" )
 
         cmd .= appending( config//cc_args->String )
