@@ -90,9 +90,8 @@ Defines the C++ command that should be used to compile the RogueC-generated .cpp
 
 ### CC_ARGS
 
-    #  Defaults shown
-    #$ CC_ARGS          = -Wall
-    #$ CC_ARGS(Windows) = /EHsc /nologo
+    #$ CC_ARGS          = -Wno-suchandsuch
+    #$ CC_ARGS(Windows) = /bigobject
 
 Gives additional compile options. Stacks such that options are cumulative.
 
