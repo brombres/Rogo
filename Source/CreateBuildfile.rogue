@@ -44,6 +44,7 @@ class CreateBuildfile
            |#$ LIBRARIES(Linux)   = libjpeg(install:libjpeg-dev)
            |#$ LIBRARIES(Linux)   = libpng(install:libpng-dev)
            |#$ LIBRARIES(Windows) = abepralle/windowsmedialibs
+           |#$ CC_LINK(Windows)   = /link /LTCG
            |
            |uses Bitmap
            |uses Bitmap/IO
@@ -61,8 +62,10 @@ class CreateBuildfile
         builder.println ''    BUILD_MODE       = "debug"''
         builder.println ''    LAUNCHER_FOLDER  = "/usr/local/bin"''
         builder.println ''    ROGUEC_FLAGS     = ""''
-        builder.println ''    CC_FLAGS_UNIX    = ""''
-        builder.println ''    CC_FLAGS_WINDOWS = ""''
+        builder.println ''    CC_ARGS_UNIX     = ""''
+
+        if (bitmap_support) builder.println ''    CC_ARGS_WINDOWS  = "/link /LTCG"''
+        else                builder.println ''    CC_ARGS_WINDOWS  = ""''
 
         builder.println ...
           @|endAugment
@@ -337,7 +340,7 @@ class CreateBuildfile
            |  local c_filepath = File( "Build/$-$" (Build.PROJECT,System.os) ).esc
            |  local exe_filepath = exe_file.esc
            |  if (System.is_windows)
-           |    local flags = Build.CC_FLAGS_WINDOWS
+           |    local flags = Build.CC_ARGS_WINDOWS
            |    if (flags != "") flags += " "
            |    flags += which{ Build.BUILD_MODE=="release":"/O2" || "/Od" }
            |    local obj_filepath = File( "Build/$-Windows.obj"(Build.PROJECT) ).esc
@@ -345,7 +348,7 @@ class CreateBuildfile
            |    cc .= appending( "$LIBRARY_FLAGS" )
            |    execute cc
            |  else
-           |    local flags = Build.CC_FLAGS_UNIX
+           |    local flags = Build.CC_ARGS_UNIX
            |    if (flags != "") flags += " "
            |    flags += which{ Build.BUILD_MODE=="release":"-O3" || "-O0" }
            |    local cc = "cc $ -Wall -fno-strict-aliasing $.c -o $ -lm" (flags,File(c_filepath).esc,exe_file.esc)
