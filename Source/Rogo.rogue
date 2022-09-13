@@ -304,15 +304,9 @@ class Rogo [singleton]
     method configure_macos
       if (0 != System.run("which brew > /dev/null 2>&1"))
         require_command_line
-        if (Console.input( "\nHomebrew must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
-          local cmd = @|/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          println cmd
-          if (0 != System.run(cmd))
-            throw Error( "Failed to install Homebrew." )
-          endIf
-        else
-          throw Error( "Missing required dependency 'brew' (Homebrew)." )
-        endIf
+        local mesg = "Homebrew must be installed. Execute the following and then re-run the Morlock installer:\n"
+        mesg += @|/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        throw Error( mesg )
       endIf
 
       if (0 != System.run("which pkg-config > /dev/null 2>&1"))
@@ -485,6 +479,15 @@ class Rogo [singleton]
         if (listing.count) libs = listing.first
       else
         local listing = run( "  brew list -v " + package_name )
+
+        # info (header)
+        if (listing)
+          local candidates = listing.split( '\n' )
+          candidates.keep( $.contains("include/") )
+          if (candidates.count) info = "-I" + File(candidates.first).parent
+        endIf
+
+        # libs
         if (listing)
           local candidates = listing.split( '\n' )
           candidates.keep( $.ends_with(".a") )
