@@ -38,11 +38,12 @@ class CreateBuildfile
           @|#$ LINK_LIBS            = true
            |   # Link the following in when compiling this Build.rogue
            |
-           |#$ LIBRARIES(macOS) = libjpeg
-           |#$ LIBRARIES(macOS) = libpng
-           |#$ LIBRARIES(macOS) = zlib(flags:-lz)
-           |#$ LIBRARIES(Linux) = libjpeg(install:libjpeg-dev)
-           |#$ LIBRARIES(Linux) = libpng(install:libpng-dev)
+           |#$ LIBRARIES(macOS)   = libjpeg
+           |#$ LIBRARIES(macOS)   = libpng
+           |#$ LIBRARIES(macOS)   = zlib(flags:-lz)
+           |#$ LIBRARIES(Linux)   = libjpeg(install:libjpeg-dev)
+           |#$ LIBRARIES(Linux)   = libpng(install:libpng-dev)
+           |#$ LIBRARIES(Windows) = abepralle/windowsmedialibs
            |
            |uses Bitmap
            |uses Bitmap/IO
