@@ -382,6 +382,8 @@ class Rogo [singleton]
           install_macos_library( library )
         case "Linux"
           install_linux_library( library )
+        case "Windows"
+          install_windows_library( library )
         others
           throw Error( ''Rogo does not know how to install a $ library.'' (System.os) )
       endWhich
@@ -471,27 +473,35 @@ class Rogo [singleton]
     method fetch_macos_info( package_name:String )->String
       if (not package_name) return null
 
-      local info = run( "  pkg-config --cflags $"(package_name) )
+      local info : String
+      local libs : String
 
-      local libs = run( "  pkg-config --libs-only-L $"(package_name) )
-      if (libs)
-        local listing = (File(libs.after_first("-L").trimmed)/"*.a").listing
-        if (listing.count) libs = listing.first
+      if (package_name.contains('/'))
+        info = run( "  morlock cflags $"(package_name) )
+        libs = run( "  morlock libs $"(package_name) )
       else
-        local listing = run( "  brew list -v " + package_name )
+        info = run( "  pkg-config --cflags $"(package_name) )
+        libs = run( "  pkg-config --libs-only-L $"(package_name) )
 
-        # info (header)
-        if (listing)
-          local candidates = listing.split( '\n' )
-          candidates.keep( $.contains("include/") )
-          if (candidates.count) info = "-I" + File(candidates.first).parent
-        endIf
+        if (libs)
+          local listing = (File(libs.after_first("-L").trimmed)/"*.a").listing
+          if (listing.count) libs = listing.first
+        else
+          local listing = run( "  brew list -v " + package_name )
 
-        # libs
-        if (listing)
-          local candidates = listing.split( '\n' )
-          candidates.keep( $.ends_with(".a") )
-          if (candidates.count) libs = candidates.first  # .a file to link in
+          # info (header)
+          if (listing)
+            local candidates = listing.split( '\n' )
+            candidates.keep( $.contains("include/") )
+            if (candidates.count) info = "-I" + File(candidates.first).parent
+          endIf
+
+          # libs
+          if (listing)
+            local candidates = listing.split( '\n' )
+            candidates.keep( $.ends_with(".a") )
+            if (candidates.count) libs = candidates.first  # .a file to link in
+          endIf
         endIf
       endIf
 
@@ -518,17 +528,127 @@ class Rogo [singleton]
       local install_cmd : String
 
       if local install_name = library//install->String
-        install_cmd = "brew install $" (install_name)
+        if (install_name.contains('/')) install_cmd = "morlock install $"(install_name)
+        else                            install_cmd = "brew install $" (install_name)
       elseIf local cmd = library["install-cmd"]->String
         install_cmd = cmd
       elseIf local package_name = library//package->String
-        install_cmd = "brew install $" (package_name)
+        if (package_name.contains('/')) install_cmd = "morlock install $"(package_name)
+        else                            install_cmd = "brew install $" (package_name)
       else
-        install_cmd = "brew install $" (library_name)
+        if (library_name.contains('/')) install_cmd = "morlock install $"(library_name)
+        else                            install_cmd = "brew install $" (library_name)
       endIf
 
       run( install_cmd )  # this could succeed in principal but return non-zero with a warning, as with zlib
       if (not find_macos_library(library))
+        throw Error( "Failed to install library '$'." (library_name) )
+      endIf
+
+    method find_windows_library( library:Value )->Logical
+      local name = library//name->String
+      local exists = false
+
+      # If an 'exe' name or is specified, that executable must exist.
+      if local exe = library//exe->String
+        if (not System.find_executable(exe)) return false
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = ""
+        save_cache
+        exists = true
+      endIf
+
+      # If an 'exists-cmd' is given, it must execute without error (specifying 'true' is permitted).
+      if local exists_cmd = library["exists-cmd"]->String
+        if (exists_cmd != "true" and not run(exists_cmd)) return false
+        exists = true
+      endIf
+
+      # Find flags using 'flags', 'info' name, 'info-cmd', 'package' name, or 'name', in that order
+      local flags = library//flags->String
+      if (not flags)
+        flags = fetch_windows_info( library["info"] )
+        if (not flags and library.contains("info-cmd"))
+          flags = run(library["info-cmd"])
+          if (not flags) throw Error( "Error executing library info command: $"(library["info-cmd"]) )
+        endIf
+        if (not flags) flags = fetch_windows_info( library["package"] )
+        if (not flags) flags = fetch_windows_info( name )
+      endIf
+
+      if (flags)
+        println "  Library flags: $" (flags)
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = flags
+        save_cache
+        return true
+      endIf
+
+      if (exists) return true
+
+      # Check for an executable using the package name
+      if local exe = library//package->String
+        if (System.find_executable(exe))
+          if (not cache//library_flags) cache//library_flags = @{}
+          cache//library_flags[name] = ""
+          save_cache
+          return true
+        endIf
+      endIf
+
+      # Check for an executable using the library name
+      if (System.find_executable(name))
+        if (not cache//library_flags) cache//library_flags = @{}
+        cache//library_flags[name] = ""
+        save_cache
+        return true
+      endIf
+
+      return false
+
+    method fetch_windows_info( package_name:String )->String
+      if (not package_name) return null
+
+      local info : String
+      local libs : String
+
+      info = run( "  morlock cflags $"(package_name) )
+      libs = run( "  morlock libs $"(package_name) )
+
+      if (info or libs)
+        if (not info) info = ""
+        if (not libs) libs = ""
+        return info.appending(libs)
+      else
+        return null
+      endIf
+
+    method install_windows_library( library:Value )
+      local library_name = library//name->String
+      println "Checking for library $..." (library_name)
+
+      if (find_windows_library(library)) return
+
+      # Install library
+      require_command_line
+      if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
+        throw Error( "Missing required library '$'." (library_name) )
+      endIf
+
+      local install_cmd : String
+
+      if local install_name = library//install->String
+        install_cmd = "morlock install $"(install_name)
+      elseIf local cmd = library["install-cmd"]->String
+        install_cmd = cmd
+      elseIf local package_name = library//package->String
+        install_cmd = "morlock install $"(package_name)
+      else
+        install_cmd = "morlock install $"(library_name)
+      endIf
+
+      run( install_cmd )
+      if (not find_windows_library(library))
         throw Error( "Failed to install library '$'." (library_name) )
       endIf
 
@@ -596,7 +716,14 @@ class Rogo [singleton]
     method fetch_linux_info( package_name:String )->String
       if (not package_name) return null
 
-      local info = run( "  pkg-config --cflags $"(package_name) )
+      local info : String
+
+      if (package_name.contains('/'))
+        info = run( "  morlock cflags $"(package_name) )
+        info .= appending( run("  morlock libs $"(package_name)) )
+      else
+        info = run( "  pkg-config --cflags $"(package_name) )
+      endIf
       if (info) return info
 
       # Try rpm -ql for Yum+RPM Linux
@@ -749,7 +876,7 @@ class Rogo [singleton]
                   if (not scanner.next_is_identifier and not scanner.next_is_string)
                     error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
                   endIf
-                  local name = which{scanner.next_is_identifier:scanner.scan_identifier("-") || scanner.scan_string}
+                  local name = which{scanner.next_is_identifier:scanner.scan_identifier("-/") || scanner.scan_string}
                   local entry = @{ name:name, link_libs:link_libraries }
                   if (config[cmd]) config[cmd].add( entry )
                   else             config[cmd] = @[entry]
@@ -758,10 +885,10 @@ class Rogo [singleton]
                   if (scanner.consume('('))
                     scanner.consume_spaces
                     while (scanner.has_another and not scanner.next_is(')'))
-                      if (not scanner.next_is_identifier("-") and not scanner.next_is_string)
+                      if (not scanner.next_is_identifier("-/") and not scanner.next_is_string)
                         error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
                       endIf
-                      local key   = which{scanner.next_is_identifier('-'):scanner.scan_identifier("-") || scanner.scan_string}
+                      local key   = which{scanner.next_is_identifier("-/"):scanner.scan_identifier("-/") || scanner.scan_string}
                       local value : Value
                       scanner.consume_spaces
                       if (scanner.consume(':'))
