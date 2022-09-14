@@ -63,9 +63,11 @@ class CreateBuildfile
         builder.println ''    LAUNCHER_FOLDER  = "/usr/local/bin"''
         builder.println ''    ROGUEC_FLAGS     = ""''
         builder.println ''    CC_ARGS_UNIX     = ""''
+        builder.println ''    CC_LINK_UNIX     = ""''
+        builder.println ''    CC_ARGS_WINDOWS  = ""''
 
-        if (bitmap_support) builder.println ''    CC_ARGS_WINDOWS  = "/link /LTCG"''
-        else                builder.println ''    CC_ARGS_WINDOWS  = ""''
+        if (bitmap_support) builder.println ''    CC_LINK_WINDOWS  = "/link /LTCG"''
+        else                builder.println ''    CC_LINK_WINDOWS  = ""''
 
         builder.println ...
           @|endAugment
@@ -346,6 +348,7 @@ class CreateBuildfile
            |    local obj_filepath = File( "Build/$-Windows.obj"(Build.PROJECT) ).esc
            |    local cc = "cl $ /nologo $.c /Fo$ /Fe$" (flags,c_filepath,obj_filepath,exe_filepath)
            |    cc .= appending( "$LIBRARY_FLAGS" )
+           |    cc .= appending( Build.CC_LINK_WINDOWS )
            |    execute cc
            |  else
            |    local flags = Build.CC_ARGS_UNIX
@@ -353,6 +356,7 @@ class CreateBuildfile
            |    flags += which{ Build.BUILD_MODE=="release":"-O3" || "-O0" }
            |    local cc = "cc $ -Wall -fno-strict-aliasing $.c -o $ -lm" (flags,File(c_filepath).esc,exe_file.esc)
            |    cc .= appending( "$LIBRARY_FLAGS" )
+           |    cc .= appending( Build.CC_LINK_UNIX )
            |    execute cc
            |  endIf
            |endRoutine

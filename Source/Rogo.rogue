@@ -2,7 +2,7 @@
 # Rogo.rogue
 #================================================================================
 
-$define VERSION "2.4"
+$define VERSION "2.5"
 $define DATE    "September 13, 2022"
 
 $include CreateBuildfile
