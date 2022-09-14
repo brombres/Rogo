@@ -478,7 +478,6 @@ class Rogo [singleton]
 
       if (package_name.contains('/'))
         info = run( "  morlock cflags $"(package_name) )
-        libs = run( "  morlock libs $"(package_name) )
       else
         info = run( "  pkg-config --cflags $"(package_name) )
         libs = run( "  pkg-config --libs-only-L $"(package_name) )
@@ -613,7 +612,6 @@ class Rogo [singleton]
       local libs : String
 
       info = run( "  morlock cflags $"(package_name) )
-      libs = run( "  morlock libs $"(package_name) )
 
       if (info or libs)
         if (not info) info = ""
@@ -720,7 +718,6 @@ class Rogo [singleton]
 
       if (package_name.contains('/'))
         info = run( "  morlock cflags $"(package_name) )
-        info .= appending( run("  morlock libs $"(package_name)) )
       else
         info = run( "  pkg-config --cflags $"(package_name) )
       endIf
