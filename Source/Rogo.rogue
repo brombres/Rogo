@@ -403,11 +403,16 @@ class Rogo [singleton]
 
       return null
 
-    method run( cmd:String )->String
+    method run( cmd:String, &interactive )->String
       println( cmd )
-      local result = Process.run( cmd, &env )
-      if (result.exit_code != 0) return null
-      return result.output_string.trimmed
+      if (interactive)
+        System.run( cmd )
+        return null
+      else
+        local result = Process.run( cmd, &env )
+        if (result.exit_code != 0) return null
+        return result.output_string.trimmed
+      endIf
 
     method find_macos_library( library:Value )->Logical
       local name = library//name->String
@@ -539,7 +544,8 @@ class Rogo [singleton]
         else                            install_cmd = "brew install $" (library_name)
       endIf
 
-      run( install_cmd )  # this could succeed in principal but return non-zero with a warning, as with zlib
+      run( install_cmd, &interactive )  # this could succeed in principal but return non-zero with a warning, as with zlib
+
       if (not find_macos_library(library))
         throw Error( "Failed to install library '$'." (library_name) )
       endIf
@@ -645,7 +651,8 @@ class Rogo [singleton]
         install_cmd = "morlock install $"(library_name)
       endIf
 
-      run( install_cmd )
+      run( install_cmd, &interactive )
+
       if (not find_windows_library(library))
         throw Error( "Failed to install library '$'." (library_name) )
       endIf
@@ -715,13 +722,18 @@ class Rogo [singleton]
       if (not package_name) return null
 
       local info : String
+      local libs : String
 
       if (package_name.contains('/'))
         info = run( "  morlock cflags $"(package_name) )
       else
         info = run( "  pkg-config --cflags $"(package_name) )
+        libs = run( "  pkg-config --libs $"(package_name) )
       endIf
-      if (info) return info
+
+      if (info or libs)
+        return "".appending(info).appending(libs)
+      endIf
 
       # Try rpm -ql for Yum+RPM Linux
       if (not info and package_manager_list)
@@ -759,7 +771,8 @@ class Rogo [singleton]
         install_cmd = "$ $" (package_manager_install,library_name)
       endIf
 
-      run( install_cmd )  # this could succeed in principal but return non-zero with a warning, as with zlib
+      run( install_cmd, &interactive )  # this could succeed in principal but return non-zero with a warning, as with zlib
+
       if (not find_linux_library(library))
         throw Error( "Failed to install library '$'." (library_name) )
       endIf
