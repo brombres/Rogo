@@ -33,6 +33,10 @@ class CreateBuildfile
       builder.println ''$requireRogue "$"''('$',$rogueVersion)
       builder.println
 
+
+      builder.println @|uses Utility/VersionNumber
+                       |
+
       if (bitmap_support)
         builder.println ...
           @|#$ LINK_LIBS            = true
@@ -198,9 +202,37 @@ class CreateBuildfile
            |  if (not System.is_windows) verbose_delete( "$/$"(launcher_folder,Build.LAUNCHER_NAME) )
            |endRoutine
            |
+           |routine current_version->String
+           |  contingent
+           |    local file = File("Source/$.rogue"(Build.PROJECT))
+           |    necessary (file.exists)
+           |
+           |    local v = String(file).extract_string( ''*define VERSION "$"*'' )
+           |    necessary (v and v.count)
+           |    return v
+           |  endContingent
+           |
+           |  contingent
+           |    local file = File("README.md")
+           |    necessary (file.exists)
+           |
+           |    if local line = String(file).split('\n').find( $.contains_pattern("Version|$(I)") )
+           |      local v = line.after_first('|').trimmed
+           |      necessary (v.count)
+           |      return v
+           |    endIf
+           |  endContingent
+           |
+           |  return "(none)"
+           |endRoutine
+           |
            |routine rogo_update_version( version:String )
            |  # Updates the version number and date in the project source and README.md.
-           |  if (version.count == 0) throw Error( "New version number expected, e.g. '1.0.2'." )
+           |  localize current_version
+           |  if (version.count == 0) throw Error( "New version number expected, e.g. '1.0.2'. Current version: $"(current_version) )
+           |  if (current_version != "(none)" and VersionNumber(version) <= current_version)
+           |    error.println( "[WARNING] The new version number ($) is not higher than the current version number ($)."(version,current_version) )
+           |  endIf
            |
        builder.println ''  block file = File( "Source/$.rogue" )''(project_name)
 
@@ -250,7 +282,7 @@ class CreateBuildfile
            |
            |routine rogo_commit( new_version:String )
            |  # Updates source and README version number and git-commits with a version number message.
-           |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo commit'." )
+           |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo commit'. Current version: $"(current_version) )
            |  rogo_update_version( new_version )
            |
            |  if (not System.find_executable("git")) throw Error( "Git must be installed." )
@@ -278,7 +310,7 @@ class CreateBuildfile
          builder.println ...
           @|routine rogo_publish( new_version:String )
            |  # Updates source and README version number, commits, and publishes a release to GitHub.
-           |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo publish'." )
+           |  if (not String.exists(new_version)) throw Error( "Expected version number after 'rogo publish'. Current version: $"(current_version) )
            |  if (not System.find_executable("gh")) throw Error( "The GitHub command line tool 'gh' must be installed." )
            |  rogo_commit( new_version )
            |
