@@ -20,7 +20,7 @@ Platforms | Windows, macOS, Linux
 
 *Or:*
 
-1. Install [rogue](https://github.com/AbePralle/Rogue).
+1. Install [rogue](https://github.com/brombres/Rogue).
 2. Clone this repo.
 3. `make install`
 

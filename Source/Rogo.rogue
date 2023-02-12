@@ -62,7 +62,7 @@ class Rogo [singleton]
       local args = System.command_line_arguments
       if (args.count == 1 and args.first == "--version")
         println VERSION
-        println "$ by Abe Pralle"(DATE)
+        println "$ by Brom Bresenham"(DATE)
         System.exit
       endIf
 
