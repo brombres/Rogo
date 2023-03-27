@@ -63,9 +63,11 @@ class CreateBuildfile
         builder.println ''    PROJECT          = "$"'' (project_name)
         builder.println ''    LAUNCHER_NAME    = PROJECT.to_lowercase : String''
         builder.println
-        builder.println ''    BUILD_MODE       = "debug"''
+        builder.println ''    BUILD_MODE       = "debug"  # set to "debug" or "release"''
         builder.println ''    LAUNCHER_FOLDER  = "/usr/local/bin"''
         builder.println ''    ROGUEC_FLAGS     = ""''
+        builder.println ''    CC_ARGS_MACOS    = ""''
+        builder.println ''    CC_LINK_MACOS    = ""''
         builder.println ''    CC_ARGS_UNIX     = ""''
         builder.println ''    CC_LINK_UNIX     = ""''
         builder.println ''    CC_ARGS_WINDOWS  = ""''
@@ -358,8 +360,10 @@ class CreateBuildfile
            |  local c_filepath = "Build/$-$" (Build.PROJECT,System.os)
            |  local flags = Build.ROGUEC_FLAGS
            |  if (Build.BUILD_MODE == "debug") flags = flags.with_suffix(' ') + "--debug"
-           |  local cmd = "roguec $ $ --main --output=$ --target=Console,C,$"...
-           |              (File(src_filepath).esc,flags,File(c_filepath).esc,System.os)
+           |  local targets = "--target=Console,C,$"(System.os)
+           |  if (System.is_macos) targets += ",ObjC"
+           |  local cmd = "roguec $ $ --main --output=$ $"...
+           |              (File(src_filepath).esc,flags,File(c_filepath).esc,targets)
            |  println "> " + cmd
            |  local error = System.run( cmd )
            |  if (error) throw Error( "Build failed." )
@@ -376,6 +380,14 @@ class CreateBuildfile
            |    local cc = "cl $ /nologo $.c /Fo$ /Fe$" (flags,c_filepath,obj_filepath,exe_filepath)
            |    cc .= appending( "$LIBRARY_FLAGS" )
            |    cc .= appending( Build.CC_LINK_WINDOWS )
+           |    execute cc
+           |  elseIf (System.is_macos)
+           |    local flags = Build.CC_ARGS_MACOS
+           |    if (flags != "") flags += " "
+           |    flags += which{ Build.BUILD_MODE=="release":"-O3" || "-O0" }
+           |    local cc = "cc $ -Wall -fno-strict-aliasing $.m -o $ -lm" (flags,File(c_filepath).esc,exe_file.esc)
+           |    cc .= appending( "$LIBRARY_FLAGS" )
+           |    cc .= appending( Build.CC_LINK_MACOS )
            |    execute cc
            |  else
            |    local flags = Build.CC_ARGS_UNIX
