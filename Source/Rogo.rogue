@@ -222,6 +222,7 @@ class Rogo [singleton]
         if (not File(roguec).exists) roguec = "roguec"  # use system default
         local roguec_args = config//roguec_args->String
         local cmd =  "$ --target=C,Console,$" (roguec,System.os)
+        if (System.is_macos) cmd += ",ObjC"
         forEach (filepath in buildfiles)
           cmd += " " + (rogo_folder/File(filepath).filename).esc
         endForEach
@@ -246,7 +247,8 @@ class Rogo [singleton]
         else                   cmd .= appending( "-Wall -fno-strict-aliasing" )
 
         cmd .= appending( config//cc_args->String )
-        cmd += " $.c"(base_name)
+        if (System.is_macos) cmd += " $.m"(base_name)
+        else                 cmd += " $.c"(base_name)
 
         forEach (library in config//libraries)
           install_library( library )
