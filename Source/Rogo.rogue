@@ -29,6 +29,7 @@ $include CreateProjectSource
 #                 info-cmd:<get-info-cmd>    info-cmd:"pkg-config --cflags freetype2"
 #                 install:<install-name>     install:libfreetype6-dev
 #                 install-cmd:<install-cmd>  install:"sudo apt-get install libfreetype6-dev"
+#                 link:<setting>             link:false  # does not show up in $LIBRARY_FLAGS
 #                 package:<package-name>     package:libjpeg
 #$ DEPENDENCIES = Library/Rogue/**/*.rogue
 
@@ -253,7 +254,7 @@ class Rogo [singleton]
         forEach (library in config//libraries)
           install_library( library )
           if (library//link_libs)
-            cmd += " $" (library_flags(library))
+            cmd .= appending( library_flags(library) )
           endIf
         endForEach
 
@@ -784,6 +785,8 @@ class Rogo [singleton]
         install_library( library )
       endIf
 
+      if (library.contains("link") and library//link->String.equals("false",&ignore_case)) return ""
+
       return cache//library_flags[library//name].as_string
 
     method scan_autodoc( file:File )
@@ -926,8 +929,9 @@ class Rogo [singleton]
                         sufficient (key == "info-cmd")
                         sufficient (key == "install")
                         sufficient (key == "install-cmd")
+                        sufficient (key == "link")
                         sufficient (key == "package")
-                        error( file, line_index+1, "Invalid library option '$'. Supported options are exe, exists-cmd, flags, info, info-cmd, install, install-cmd, and package."(key) )
+                        error( file, line_index+1, "Invalid library option '$'. Supported options are exe, exists-cmd, flags, info, info-cmd, install, install-cmd, link, and package."(key) )
                       endContingent
 
                       entry[key] = value
@@ -1006,8 +1010,7 @@ class Rogo [singleton]
                 block
                   forEach (lib in config//libraries)
                     if (lib//name == library_name)
-                      if (replacement.count > 0) replacement += " "
-                      replacement += library_flags( lib )
+                      replacement .= appending( library_flags(lib) )
                       escapeBlock
                     endIf
                   endForEach
