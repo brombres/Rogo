@@ -4,7 +4,7 @@ class CreateBuildfile
       CreateGitIgnore()
 
       local project_option = args.find( $.begins_with("--project") )
-      local bitmap_support = args.contains( "--bitmap" )
+      local bitmap_support = args.contains("--graphics") or args.contains("--bitmap")
       local github_support = true
       local project_name : String
       if (project_option)
@@ -48,10 +48,11 @@ class CreateBuildfile
            |#$ LIBRARIES(Linux)   = libjpeg(install:libjpeg-dev)
            |#$ LIBRARIES(Linux)   = libpng(install:libpng-dev)
            |#$ LIBRARIES(Windows) = brombres/windowsmedialibs
+           |#$ CC_LINK(macOS)     = -I /System/Libraries/Frameworks -framework Foundation -framework AppKit
            |#$ CC_LINK(Windows)   = /link /LTCG
            |
-           |uses Bitmap
-           |uses Bitmap/IO
+           |uses Graphics
+           |uses Graphics/BitmapIO
            |
       endIf
 
@@ -67,7 +68,11 @@ class CreateBuildfile
         builder.println ''    LAUNCHER_FOLDER  = "/usr/local/bin"''
         builder.println ''    ROGUEC_FLAGS     = ""''
         builder.println ''    CC_ARGS_MACOS    = ""''
-        builder.println ''    CC_LINK_MACOS    = ""''
+        if (bitmap_support)
+          builder.println ''    CC_LINK_MACOS    = "-I /System/Libraries/Frameworks -framework Foundation -framework AppKit"''
+        else
+          builder.println ''    CC_LINK_MACOS    = ""''
+        endIf
         builder.println ''    CC_ARGS_UNIX     = ""''
         builder.println ''    CC_LINK_UNIX     = ""''
         builder.println ''    CC_ARGS_WINDOWS  = ""''

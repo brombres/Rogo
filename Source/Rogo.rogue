@@ -130,9 +130,9 @@ class Rogo [singleton]
                    |  --project=ProjectName
                    |    Creates additional starter framework for the specified ProjectName.
                    |
-                   |  --bitmap
+                   |  --graphics
                    |    Links Build.rogue and the starter project (if --project is specified) with
-                   |    libpng and libjpeg libraries.
+                   |    libpng and libjpeg libraries and adds 'uses Graphics' to the project source.
                    |
                    |If no options are specified then only Build.rogue is created.
           Global.error.println( mesg.word_wrapped(w) )
