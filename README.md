@@ -112,18 +112,20 @@ Lists additional .rogue source files that Rogo should be aware of. The build exe
 
     #$ LIBRARIES = libname
     #$ LIBRARIES = libname(<package-name>)
-    #$ LIBRARIES = libname(OPTIONS...)
+    #$ LIBRARIES = libname(OPTION...)
 
-Option                    | Example
---------------------------|----------------------------------------------------
-exe:<which-name>          | exe:"wget"
-exists-cmd:<exists-cmd>   | exists-cmd:"which wget"
-flags:<library-flags>     | flags:"-I/opt/homebrew/opt/freetype/include/freetype2"
-info:<info-name>          | info:freetype2
-info-cmd:<get-info-cmd>   | info-cmd:"pkg-config --cflags freetype2"
-install:<install-name>    | install:libfreetype6-dev
-install-cmd:<install-cmd> | install:"sudo apt-get install libfreetype6-dev"
-package:<package-name>    | package:libjpeg
+Option                      | Example
+----------------------------|----------------------------------------------------
+`exe:<which-name>`          | `exe:"wget"`
+`exists-cmd:<exists-cmd>`   | `exists-cmd:"which wget"`
+`flags:<library-flags>`     | `flags:"-I/opt/homebrew/opt/freetype/include/freetype2"`
+`ignore-exe-only:<setting>` | `ignore-exe-only:true`<br>Installs development library even when a binary with the executable name exists.
+`info:<info-name>`          | `info:freetype2`
+`info-cmd:<get-info-cmd>`   | `info-cmd:"pkg-config --cflags freetype2"`
+`install:<install-name>`    | `install:libfreetype6-dev`
+`install-cmd:<install-cmd>` | `install:"sudo apt-get install libfreetype6-dev"`
+`link:<setting>`            | `link:false`<br>Install this library but do not generate linker args for it.
+`package:<package-name>`    | `package:libjpeg`
 
 Various ways to have Rogo automatically install (via `brew`, `apt`, or `yum`) and possibly link various third-party libraries into the compilation of the Rogo build file and/or C++ files that Rogo builds.
 

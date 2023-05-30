@@ -458,6 +458,10 @@ class Rogo [singleton]
 
       if (exists) return true
 
+      if local ignore_exe_only = library["ignore-exe-only"].as_string
+        if (ignore_exe_only == "true") return false
+      endIf
+
       # Check for an executable using the package name
       if local exe = library//package.as_string
         if (System.find_executable(exe))
@@ -594,6 +598,10 @@ class Rogo [singleton]
 
       if (exists) return true
 
+      if local ignore_exe_only = library["ignore-exe-only"].as_string
+        if (ignore_exe_only == "true") return false
+      endIf
+
       # Check for an executable using the package name
       if local exe = library//package.as_string
         if (System.find_executable(exe))
@@ -700,6 +708,10 @@ class Rogo [singleton]
       endIf
 
       if (exists) return true
+
+      if local ignore_exe_only = library["ignore-exe-only"].as_string
+        if (ignore_exe_only == "true") return false
+      endIf
 
       # Check for an executable using the package name
       if local exe = library//package.as_string
@@ -925,6 +937,7 @@ class Rogo [singleton]
                         sufficient (key == "exe")
                         sufficient (key == "exists-cmd")
                         sufficient (key == "flags")
+                        sufficient (key == "ignore-exe-only")
                         sufficient (key == "info")
                         sufficient (key == "info-cmd")
                         sufficient (key == "install")

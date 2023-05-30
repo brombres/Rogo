@@ -494,8 +494,18 @@ class CreateBuildfile
          |#   DEPENDENCIES = Library/Rogue/**/*.rogue
          |#
          |#   LIBRARIES    = name(package)
-         |#   LIBRARIES    = name(package:<package> install:<install-cmd>
-         |#                  link:<link-flags> which:<which-name>)
+         |#   LIBRARIES    = name(
+         |#                    exe:<which-name>
+         |#                    exists-cmd:<exists-cmd>
+         |#                    flags:<library-flags>
+         |#                    ignore-exe-only:<setting>
+         |#                    info:<info-name>
+         |#                    info-cmd:<get-info-cmd>
+         |#                    install:<install-name>
+         |#                    install-cmd:<install-cmd>
+         |#                    link:<setting>
+         |#                    package:<package-name>
+         |#                  )
          |#
          |# The following macro is replaced within this file (Build.rogue) - the libraries
          |# should normally also be declared in #$ LIBRARIES:
