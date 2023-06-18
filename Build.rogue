@@ -578,7 +578,7 @@ routine rogo_help( command="":String )
           sufficient (max_len + description.count <= max_w)
         endIf
         necessary (max_len + 10 <= max_w)
-        description = description.unright( (description.count - (max_w - max_len))+3 ) + "..."
+        description = description.unright( (description.count - (max_w - max_len))+5 ) + "..."
       satisfied
         print description
       endContingent
