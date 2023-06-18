@@ -709,7 +709,7 @@ class CreateBuildfile
          |      local description = entry.@description
          |      loop (max_len - entry.syntax.count) print ' '
          |      contingent
-         |        sufficient (max_len + description.count <= max_w)
+         |        sufficient (2 + max_len + description.count <= max_w)
          |        if (description.contains(". "))
          |          description = description.before_first( ". " ) + "."
          |          sufficient (max_len + description.count <= max_w)
