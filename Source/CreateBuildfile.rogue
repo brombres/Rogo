@@ -58,7 +58,7 @@ class CreateBuildfile
 
       if (project_name)
         builder.println @|augment Build
-                         |  # You can create a Local.settings file with overrides for these values, e.g.:
+                         |  # You can create a Local.rogo file with overrides for these values, e.g.:
                          |  # BUILD_MODE = release
                          |  PROPERTIES
         builder.println ''    PROJECT          = "$"'' (project_name)
@@ -543,7 +543,7 @@ class CreateBuildfile
          |    rogo_args           = @[]
          |    rogo_error          : Error
          |
-         |    LOCAL_SETTINGS_FILE = "Local.settings"
+         |    LOCAL_SETTINGS_FILE = "Local.rogo"
          |
          |  METHODS
          |    method launch
@@ -626,7 +626,7 @@ class CreateBuildfile
          |      read_defs( LOCAL_SETTINGS_FILE )
          |
          |    method read_defs( defs_filepath:String )
-         |      # Attempt to read defs from Local.settings
+         |      # Attempt to read defs from Local.rogo
          |      local overrides = String[]
          |      if (File(defs_filepath).exists)
          |        forEach (line in LineReader(File(defs_filepath)))

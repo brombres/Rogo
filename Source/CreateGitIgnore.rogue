@@ -12,7 +12,7 @@ class CreateGitIgnore
         gitignore.save(
           @|# Rogo
            |.rogo
-           |Local.settings
+           |Local.rogo
            |BuildLocal.rogue
            |/Build
            |
@@ -33,7 +33,7 @@ class CreateGitIgnore
 
       add_patterns( "# Rogo",
         @|.rogo
-         |Local.settings
+         |Local.rogo
          |BuildLocal.rogue
          |/Build
       )
