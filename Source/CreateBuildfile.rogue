@@ -574,7 +574,7 @@ class CreateBuildfile
          |    method on_error
          |      local w = Console.width.or_smaller( 80 )
          |      Console.error.println "=" * w
-         |      Console.error.println rogo_error
+         |      Console.error.println rogo_error->String.word_wrapped(w)
          |      Console.error.println "=" * w
          |      on_exit
          |      System.exit 1
@@ -667,6 +667,7 @@ class CreateBuildfile
          |    endIf
          |    local description = get_description( command )
          |    if (description)
+         |      description .= replacing("<br>","\n")
          |      local max_w = Console.width - 2
          |      println "DESCRIPTION"
          |      forEach (line in LineReader(description.word_wrapped(max_w)))
@@ -706,7 +707,7 @@ class CreateBuildfile
          |  forEach (entry in entries)
          |    print "  " + entry.syntax
          |    if (entry.@description)
-         |      local description = entry.@description
+         |      local description = entry.@description.before_first( '\n' )
          |      loop (max_len - entry.syntax.count) print ' '
          |      contingent
          |        sufficient (2 + max_len + description.count <= max_w)

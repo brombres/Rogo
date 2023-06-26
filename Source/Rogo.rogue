@@ -801,8 +801,19 @@ class Rogo [singleton]
 
       return cache//library_flags[library//name].as_string
 
+    method update_spacer( min_spacer:Int32?, line:String )->Int32?
+      local spacer : Int32
+      forEach (ch in line)
+        if (ch == ' ') ++spacer
+        else           escapeForEach
+      endForEach
+      if (spacer >= line.count) return min_spacer
+      if (not min_spacer or spacer < min_spacer.value) return spacer
+      return min_spacer
+
     method scan_autodoc( file:File )
       local cmd : String
+      local min_spacer : Int32?
       use builder = StringPool
         forEach (line in LineReader(file))
           line .= trimmed
@@ -815,9 +826,12 @@ class Rogo [singleton]
             builder.clear
           elseIf (cmd)
             if (line.begins_with('#'))
-              line = line.unleft(1).trimmed
-              if (line.begins_with("syntax:",&ignore_case))
-                line = line.unleft(7).trimmed
+              line .= unleft(1)
+              min_spacer = update_spacer( min_spacer, line )
+              line .= unleft( min_spacer.value )
+
+              if (line.trimmed.begins_with("syntax:",&ignore_case))
+                line = line.trimmed.unleft(7).trimmed
                 if (line.begins_with("rogo ")) line = line.unleft(5).trimmed
                 syntax_info[cmd] = line
               elseIf (builder.count > 0)
@@ -840,7 +854,7 @@ class Rogo [singleton]
                       curln = null
                     endIf
                   elseIf (curln)
-                    if (curln.last != ' ') curln += ' '
+                    if (curln.last != ' ' and not curln.ends_with("<br>")) curln += ' '
                     curln += nextln
                   else
                     curln = nextln
