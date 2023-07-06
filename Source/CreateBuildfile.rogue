@@ -632,9 +632,14 @@ class CreateBuildfile
          |        forEach (line in LineReader(File(defs_filepath)))
          |          if (line.contains("="))
          |            local name  = line.before_first('=').trimmed
-         |            local value = line.after_first('=').trimmed
-         |            if (value.begins_with('"') or value.begins_with('\''))
-         |              value = value.leftmost(-1).rightmost(-1)
+         |            local rhs   = line.after_first('=').trimmed
+         |            local value : Value
+         |            if (rhs.begins_with('"') or rhs.begins_with('\''))
+         |              value = rhs.leftmost(-1).rightmost(-1)
+         |            elseIf (rhs.begins_with('{') or rhs.begins_with('['))
+         |              value = JSON.parse( rhs )
+         |            else
+         |              value = rhs
          |            endIf
          |            local p = <<Build>>.find_property( name )
          |            if (p)
