@@ -108,9 +108,9 @@ class Rogo [singleton]
       endIf
 
       # These add()s only succeed for files that actually exist.
-      buildfiles.add( project_folder/"Build.rogue" )
-      buildfiles.add( project_folder/"BuildCore.rogue" )
-      buildfiles.add( project_folder/"BuildLocal.rogue" )
+      forEach (buildfile in Files(project_folder,"Build*.rogue"))
+        buildfiles.add( buildfile )
+      endForEach
 
       if (not buildfiles.count)
         if (should_create_buildfile)
