@@ -166,6 +166,7 @@ class Rogo [singleton]
           local listing = File( pattern ).listing( &files )
           forEach (dependency in listing)
             if (File(dependency).filename.begins_with("Build") and not buildfiles.contains(dependency))
+              buildfiles.add( dependency )
               collect_directives( File(dependency), dependencies )
             endIf
           endForEach
@@ -216,7 +217,7 @@ class Rogo [singleton]
         # Now that we have the config info, rewriting to handle $+LIBRARY(name) etc. Places copies in .rogo/
         scan_autodoc( File(forEach in buildfiles) )
         forEach (file at index in buildfiles)
-          scan_and_rewrite( File(file), &write_autodoc=(index==0) )
+          scan_and_rewrite( File(file), index )
         endForEach
 
         local roguec = config//roguec
@@ -224,8 +225,8 @@ class Rogo [singleton]
         local roguec_args = config//roguec_args->String
         local cmd =  "$ --target=C,Console,$" (roguec,System.os)
         if (System.is_macos) cmd += ",ObjC"
-        forEach (filepath in buildfiles)
-          cmd += " " + (rogo_folder/File(filepath).filename).esc
+        forEach (filepath at index in buildfiles)
+          cmd .= appending( File(rogo_folder/"$-$"(index,File(filepath).filename)).esc )
         endForEach
         cmd += " --api --debug --main --output=$" (base_name)
         cmd .= appending( roguec_args )
@@ -881,13 +882,11 @@ class Rogo [singleton]
 
           local base_cmd = cmd.before_first('(')
           which (base_cmd)
-            case "dependencies"
-              if (dependencies)
-                if (args.begins_with('"'))      args = args.after_first('"').before_last('"')
-                elseIf (args.begins_with('\'')) args = args.after_first('\'').before_last('\'')
-                dependencies.add( args )
-                is_cache_modified = true
-              endIf
+            case "dependencies", "include"
+              if (args.begins_with('"'))      args = args.after_first('"').before_last('"')
+              elseIf (args.begins_with('\'')) args = args.after_first('\'').before_last('\'')
+              dependencies.add( args )
+              is_cache_modified = true
           endWhich
         endIf
 
@@ -1019,10 +1018,11 @@ class Rogo [singleton]
       error.println "=" * 80
       System.exit 1
 
-    method scan_and_rewrite( file:File, &write_autodoc )
+    method scan_and_rewrite( file:File, index:Int32 )
       if (not file.exists) return
+      local write_autodoc = (index == 0)
 
-      local outfile = File("$/$"(rogo_folder,file.filename))
+      local outfile = File("$/$-$"(rogo_folder,index,file.filename))
       local writer = outfile.print_writer
 
       forEach (line in LineReader(file))
@@ -1078,16 +1078,12 @@ class Rogo [singleton]
 endClass
 
 class Buildfiles : String[]
-  PROPERTIES
-    pwd = File(".").abs/"" : String
-
   METHODS
     method add( file:File )
-      file = file.resolved.abs
-      if (file.filepath.begins_with(pwd)) file = File(file.filepath.unleft(pwd.count))
+      file = file.abs
       if (not file.exists) return
       if (file.is_folder) return
-      if (not this.contains(file.filepath)) prior.add( file.filepath )
+      if (not prior.contains(file.filepath)) prior.add( file.filepath )
 
     method add( filepath:String )
       add( File(filepath) )
@@ -1103,7 +1099,7 @@ class Buildfiles : String[]
       return any_newer_than( File(filepath) )
 
     method contains( file:File )->Logical
-      return prior.contains( file.resolved.abs.filepath )
+      return prior.contains( file.abs.filepath )
 
     method contains( filepath:String )->Logical
       return contains( File(filepath) )
