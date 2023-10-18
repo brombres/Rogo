@@ -2,7 +2,9 @@
 # to this folder and type "rogo" at the command line, or "rogo help" for a list
 # of supported commands.
 
-$requireRogue "2.0"
+$requireRogue "2.32"
+
+uses Utility/FilePatcher
 
 augment Build
   # You can create a Local.settings file with overrides for these values, e.g.:
@@ -181,6 +183,30 @@ routine rogo_update_version( version:String )
       if (content != og_content)
         println "Updating version and date in $"(file)
         file.save( content )
+      endIf
+    endIf
+  endBlock
+
+  local rogue_version = Process.run( "roguec -v", &env )->String.split('\n').first.trimmed.after_first('v')
+
+  block patcher = FilePatcher( File("Build.rogue") )
+    if local i = patcher.locate( "requireRogue" )
+      local existing_rogue_version = patcher.lines[i].extract_string(''*"$"*'')
+      if (rogue_version != existing_rogue_version)
+        println "[Build.rogue] Updating requireRogue to $."(rogue_version)
+        patcher.replace_line( i, ''$requireRogue "$"''('$',rogue_version) )
+        patcher.save
+      endIf
+    endIf
+  endBlock
+
+  block patcher = FilePatcher( File("Morlock/rogo.rogue") )
+    if local i = patcher.locate( "dependency(" )
+      local existing_rogue_version = patcher.lines[i].extract_string(''*@$"*'')
+      if (rogue_version != existing_rogue_version)
+        println "[Morlock/rogo.rogue] Updating Rogue dependency to $."(rogue_version)
+        patcher.replace_line( i, ''dependency( "brombres/rogue@$" )''(rogue_version) )
+        patcher.save
       endIf
     endIf
   endBlock

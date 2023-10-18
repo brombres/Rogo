@@ -3,6 +3,10 @@ class RogoPackage : Package
     name = "brombres/rogo"
 
   METHODS
+    method init
+      dependency( "brombres/rogue@2.32" )
+      scan_repo_releases
+
     method handle_uninstall
       throw error( "Essential package $ cannot be uninstalled."(name) )
 endClass
