@@ -2,8 +2,8 @@
 # Rogo.rogue
 #================================================================================
 
-$define VERSION "2.14.1"
-$define DATE    "August 1, 2023"
+$define VERSION "2.15"
+$define DATE    "October 18, 2023"
 
 $include CreateBuildfile
 $include CreateGitIgnore
@@ -182,6 +182,37 @@ class Rogo [singleton]
           endForEach
         endForEach
       endBlock
+
+
+      # Check cached library filepaths to make sure they all still exist
+      if (cache_file.exists)
+        if (cache.contains("library_flags"))
+          local library_flags = cache//library_flags
+          local is_modified = false
+          forEach (entry in library_flags.entries)
+            contingent
+              local parts = Scanner(entry.value).scan_args
+              forEach (part in parts)
+                if (part.count)
+                  if (part.begins_with("-I") or part.begins_with("-L"))
+                    necessary (File(part.unleft(2).trimmed).exists)
+                  elseIf (not part.begins_with("-"))
+                    necessary (File(part).exists)
+                  endIf
+                endIf
+              endForEach
+            unsatisfied
+              library_flags.remove( entry.key )
+              is_modified = true
+            endContingent
+          endForEach
+
+          if (is_modified)
+            save_cache
+            needs_recompile = true
+          endIf
+        endIf
+      endIf
 
       if (needs_recompile)
         println "Recompiling $..." (File(buildfiles.first).filename)
