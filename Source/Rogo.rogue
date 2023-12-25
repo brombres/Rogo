@@ -45,8 +45,8 @@ class Rogo [singleton]
     project_folder    : File
     rogo_folder       : File
     cache_file        : File
-    cache             : Value
-    config            : Value
+    cache             : Variant
+    config            : Variant
     is_cache_modified : Logical
     link_libraries   = false
     syntax_info      = [String:String]
@@ -379,7 +379,7 @@ class Rogo [singleton]
         endIf
       endIf
 
-    method install_library( library:Value )
+    method install_library( library:Variant )
       # Can skip the install if the library specifies 'exists-cmd:true'.
       if local exists_cmd = library["exists-cmd"].as_string
         if (exists_cmd == "true") return
@@ -449,7 +449,7 @@ class Rogo [singleton]
         return result.output_string.trimmed
       endIf
 
-    method find_macos_library( library:Value )->Logical
+    method find_macos_library( library:Variant )->Logical
       local name = library//name->String
       local exists = false
 
@@ -556,7 +556,7 @@ class Rogo [singleton]
         return null
       endIf
 
-    method install_macos_library( library:Value )
+    method install_macos_library( library:Variant )
       local library_name = library//name->String
       println "Checking for library $..." (library_name)
 
@@ -589,7 +589,7 @@ class Rogo [singleton]
         throw Error( "Failed to install library '$'." (library_name) )
       endIf
 
-    method find_windows_library( library:Value )->Logical
+    method find_windows_library( library:Variant )->Logical
       local name = library//name->String
       local exists = false
 
@@ -670,7 +670,7 @@ class Rogo [singleton]
         return null
       endIf
 
-    method install_windows_library( library:Value )
+    method install_windows_library( library:Variant )
       local library_name = library//name->String
       println "Checking for library $..." (library_name)
 
@@ -700,7 +700,7 @@ class Rogo [singleton]
         throw Error( "Failed to install library '$'." (library_name) )
       endIf
 
-    method find_linux_library( library:Value )->Logical
+    method find_linux_library( library:Variant )->Logical
       local name = library//name->String
       local exists = false
 
@@ -794,7 +794,7 @@ class Rogo [singleton]
 
       return null
 
-    method install_linux_library( library:Value )
+    method install_linux_library( library:Variant )
       local library_name = library//name->String
       println "Checking for library $..." (library_name)
 
@@ -824,7 +824,7 @@ class Rogo [singleton]
         throw Error( "Failed to install library '$'." (library_name) )
       endIf
 
-    method library_flags( library:Value )->String
+    method library_flags( library:Variant )->String
       if (not cache//library_flags.contains(library//name))
         install_library( library )
       endIf
@@ -960,7 +960,7 @@ class Rogo [singleton]
                         error( file, line_index+1, "Identifier expected, found '$'."(scanner.peek) )
                       endIf
                       local key   = which{scanner.next_is_identifier("-/"):scanner.scan_identifier("-/") || scanner.scan_string}
-                      local value : Value
+                      local value : Variant
                       scanner.consume_spaces
                       if (scanner.consume(':'))
                         scanner.consume_spaces

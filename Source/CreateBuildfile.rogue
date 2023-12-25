@@ -637,7 +637,7 @@ class CreateBuildfile
          |          if (line.contains("="))
          |            local name  = line.before_first('=').trimmed
          |            local rhs   = line.after_first('=').trimmed
-         |            local value : Value
+         |            local value : Variant
          |            if (rhs.begins_with('"') or rhs.begins_with('\''))
          |              value = rhs.leftmost(-1).rightmost(-1)
          |            elseIf (rhs.begins_with('{') or rhs.begins_with('['))
@@ -654,7 +654,7 @@ class CreateBuildfile
          |        endForEach
          |      endIf
          |
-         |    method _join( value:Value )->String
+         |    method _join( value:Variant )->String
          |      local args = String[]
          |      args.add( forEach in value )
          |      return args.join( "_" )

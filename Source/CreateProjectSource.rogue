@@ -43,7 +43,7 @@ class CreateProjectSource
          |        System.exit 0
          |      endIf
          |
-         |    method parse_args( args:String[] )->Value
+         |    method parse_args( args:String[] )->Variant
          |      local command = CommandLineParser().
          |      [
          |        option( "--flag",     &alias="-f" )
