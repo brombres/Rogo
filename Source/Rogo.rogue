@@ -226,7 +226,7 @@ class Rogo [singleton]
         local os_arg_plus_package_manager = "($-$)" (System.os.to_lowercase,package_manager)
         forEach (key in config.keys)
           if (key.contains(os_arg) or key.contains(os_arg_plus_package_manager))
-            local generic_key = key.before_first('(')
+            local generic_key = key->String.before_first('(')
             if (config.contains(generic_key) and generic_key != "cc" and generic_key != "roguec")
               # Merge specialized-platform keys with generic keys
               if (generic_key == "libraries")
@@ -322,10 +322,10 @@ class Rogo [singleton]
       quoted.print( '"' )
       return quoted
 
-    method require_command_line
+    method require_command_line( library_name:String )
       if (System.env["IDE"])
-        throw Error( "$:$: error:Run 'make $' from the command line to install necessary libraries."...
-        ($sourceFilepath,$sourceLine,which{System.env["TARGET"]||""}.to_lowercase) )
+        throw Error( "$:$: error:Install '$' from the command line."...
+          ($sourceFilepath,$sourceLine,library_name) )
       endIf
 
     method save_cache
@@ -338,14 +338,14 @@ class Rogo [singleton]
 
     method configure_macos
       if (0 != System.run("which brew > /dev/null 2>&1"))
-        require_command_line
+        require_command_line( "brew" )
         local mesg = "Homebrew must be installed. Execute the following and then re-run the Morlock installer:\n"
         mesg += @|/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         throw Error( mesg )
       endIf
 
       if (0 != System.run("which pkg-config > /dev/null 2>&1"))
-        require_command_line
+        require_command_line( "pkg-config" )
         if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
           local cmd = @|brew install pkg-config
           println cmd
@@ -367,7 +367,7 @@ class Rogo [singleton]
       endIf
 
       if (0 != System.run("which pkg-config > /dev/null 2>&1"))
-        require_command_line
+        require_command_line( "pkg-config" )
         if (Console.input( "pkg-config must be installed.  Install now (y/n)? " ).to_lowercase.begins_with('y'))
           local cmd = package_manager_install + " pkg-config"
           println cmd
@@ -563,7 +563,7 @@ class Rogo [singleton]
       if (find_macos_library(library)) return
 
       # Install library
-      require_command_line
+      require_command_line( library_name )
       if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
         throw Error( "Missing required library '$'." (library_name) )
       endIf
@@ -677,7 +677,7 @@ class Rogo [singleton]
       if (find_windows_library(library)) return
 
       # Install library
-      require_command_line
+      require_command_line( library_name )
       if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
         throw Error( "Missing required library '$'." (library_name) )
       endIf
@@ -801,7 +801,7 @@ class Rogo [singleton]
       if (find_linux_library(library)) return
 
       # Install library
-      require_command_line
+      require_command_line( library_name )
       if (not Console.input( "\nLibrary '$' must be installed.  Install now (y/n)? "(library_name) ).to_lowercase.begins_with('y'))
         throw Error( "Missing required library '$'." (library_name) )
       endIf
