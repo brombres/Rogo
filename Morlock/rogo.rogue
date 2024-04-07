@@ -4,7 +4,7 @@ class RogoPackage : Package
 
   METHODS
     method init
-      dependency( "brombres/rogue@2.32" )
+      dependency( "brombres/rogue@2.34" )
       scan_repo_releases
 
     method handle_uninstall
