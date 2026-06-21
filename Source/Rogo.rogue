@@ -569,7 +569,21 @@ class Rogo [singleton]
           if (listing)
             local candidates = listing.split( '\n' )
             candidates.keep( $.contains("include/") )
-            if (candidates.count) info = "-I" + File(candidates.first).parent
+            if (candidates.count)
+              local best = File( candidates.first ).parent.filepath
+              local refine = true
+              while (refine)
+                refine = false
+                local best_folder = best + "/"
+                candidates.discard( $.begins_with(best_folder) )
+                candidates.keep( $.contains(".h") or $.contains(".hpp") )
+                if (candidates.count)
+                  best = File( candidates.first ).parent.filepath
+                  refine = true
+                endIf
+              endWhile
+              info = "-I" + best
+            endIf
           endIf
 
           # libs
